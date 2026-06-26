@@ -381,6 +381,8 @@ static void lcdLine(int row, const char* fmt, ...) {
   va_start(args, fmt);
   vsnprintf(buf, sizeof(buf), fmt, args);
   va_end(args);
+  for (int i = strlen(buf); i < 20; i++) buf[i] = ' ';
+  buf[20] = '\0';
   lcd.setCursor(0, row);
   lcd.print(buf);
 }
@@ -838,15 +840,6 @@ void monitorView() {
     lcd.setCursor(13, 3);
     lcd.print(ms);
     lcd.print("   ");
-  }
-}
-  if (key == 'C') {
-    int maxPage = (runMode == MODE_FUZZY) ? 2 : 1;
-    page = (page < maxPage) ? page + 1 : 0;
-  } else if (key == 'D') {
-    page     = 0;
-    appState = STATE_MAIN_MENU;
-    lcd.clear();
   }
 }
 
