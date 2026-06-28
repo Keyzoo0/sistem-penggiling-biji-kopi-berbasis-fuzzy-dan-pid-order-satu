@@ -84,8 +84,14 @@
 #define WS_PERIOD_MS       500
 
 // ── Jaringan ─────────────────────────────────────────────────────────────────
-#define WIFI_SSID   "Piranha"
-#define WIFI_PASS   "11223344"
+// Kredensial WiFi asli letakkan di secrets.h (di-gitignore). Lihat secrets.h.example.
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#endif
+#ifndef WIFI_SSID
+  #define WIFI_SSID   "GANTI_WIFI"
+  #define WIFI_PASS   "GANTI_PASSWORD"
+#endif
 #define AP_SSID     "Kopi-Control"
 #define AP_PASS     "12345678"
 #define HOSTNAME    "kopi"

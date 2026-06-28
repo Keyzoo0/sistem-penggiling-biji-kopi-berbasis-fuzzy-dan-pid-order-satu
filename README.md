@@ -1,306 +1,215 @@
-# Sistem Kontrol Suhu Biji Kopi
+<div align="center">
 
-ESP32-based temperature control system for coffee bean roasting/drying. Menggunakan **Fuzzy Inference System (FIS)** + **Fractional Order PID (FoPID)** hybrid control dengan dual actuator: **dimmer AC** (blower) dan **servo** (katup gas).
+# ☕ Sistem Penggiling Biji Kopi
+### berbasis **Fuzzy** & **PID Order Satu** (FoPID)
 
----
+Kontrol suhu sangrai presisi di **ESP32** — *Fuzzy Inference System* + *Fractional-Order PID*,
+**dual-core FreeRTOS**, dengan dashboard web real-time yang berjalan **100% offline**.
 
-## Fitur
+![ESP32](https://img.shields.io/badge/ESP32-Arduino_Core_3.x-000?logo=espressif&logoColor=red)
+![RTOS](https://img.shields.io/badge/FreeRTOS-dual--core-2ea44f)
+![Build](https://img.shields.io/badge/arduino--cli-compile_OK-success)
+![Web](https://img.shields.io/badge/dashboard-offline_no_CDN-ff7a2f)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-- **Hybrid Control**: Fuzzy Logic + FoPID dengan anti-windup dan decay integral
-- **Dual Actuator**: Dimmer AC (RBDdimmer) untuk blower + Servo untuk katup gas
-- **Sensor**: MLX90614 (infrared suhu), DS3231 RTC, PZEM-004T (power meter)
-- **Encoder**: Quadrature 500 PPR untuk monitoring RPM dryer
-- **Display**: LCD 20x4 I2C (0x27) dengan navigasi keypad 4x4 (0x20)
-- **Data Logging**: SD Card CSV dengan timestamp RTC
-- **Web Dashboard**: ESPAsyncWebServer + WebSocket real-time (Chart.js)
-- **mDNS**: Akses via `http://kopi.local`
-- **Countdown Timer**: 10-200 menit dengan auto-stop
+<img src="docs/dashboard-desktop.png" width="86%" alt="Dashboard">
 
----
-
-## Hardware (BOM)
-
-| Komponen | Spesifikasi | Qty |
-|----------|-------------|-----|
-| ESP32 DevKit | ESP32-WROOM-32, dual-core 240MHz | 1 |
-| MLX90614 | I2C Infrared Temp Sensor (0x5A) | 1 |
-| DS3231 RTC | Real Time Clock + EEPROM (0x68, 0x57) | 1 |
-| LCD 20x4 I2C | PCF8574 backpack (0x27) | 1 |
-| Keypad 4x4 I2C | PCF8574 (0x20) | 1 |
-| PZEM-004T v3.0 | Power Meter UART | 1 |
-| Dimmer AC | RBDdimmer (zero-cross + gate) | 1 |
-| Servo Motor | MG996R 180° | 1 |
-| Encoder | Quadrature 500 PPR | 1 |
-| SD Card Module | SPI | 1 |
-| Power Supply | 5V 3A + 12V 2A | 1 |
+</div>
 
 ---
 
-## Pin Mapping
+> Mesin pengering/roasting biji kopi. **Sumber panas = burner gas**; **blower (dimmer AC)**
+> dikontrol untuk menjaga **suhu** biji pada *setpoint*. Tantangan utamanya: blower bersifat
+> **non-monoton** terhadap suhu — itulah inti metode di proyek ini.
 
-| Komponen | Pin ESP32 | Protocol |
-|----------|-----------|----------|
-| **I2C Bus** | SDA=21, SCL=22 | LCD, Keypad, MLX, RTC |
-| **SD Card** | SCK=18, MISO=19, MOSI=23, CS=5 | SPI |
-| **PZEM-004T** | RX=16, TX=17 | UART (9600) |
-| **Dimmer Gate** | 32 | Digital |
-| **Dimmer Zero-Cross** | 35 | Digital |
-| **Servo PWM** | 13 | PWM (ESP32Servo) |
-| **Encoder A** | 25 | Interrupt |
-| **Encoder B** | 33 | Digital |
-| **LED Indicator** | 12 | PWM (2kHz) |
+## 📑 Daftar Isi
+- [Fitur](#-fitur) · [Tampilan](#-tampilan) · [Metode Kontrol](#-metode-kontrol--inti-proyek) · [Arsitektur](#%EF%B8%8F-arsitektur)
+- [Hardware](#-hardware--pinout) · [Mulai Cepat](#-mulai-cepat) · [Pemakaian](#%EF%B8%8F-pemakaian) · [Kontrak Web](#-kontrak-web-websocket--rest)
+- [Simulasi](#-simulasi) · [Roadmap](#%EF%B8%8F-roadmap) · [Kredit](#-kredit)
 
-### Wiring Diagram
+## ✨ Fitur
 
-```
-                  ┌──────────────┐
-                  │    ESP32     │
-                  │              │
-  ┌───────────────┤ SDA:21       ├───────────────┐
-  │               │ SCL:22       │               │
-  │  ┌────────────┤              │              │ │
-  │  │ LCD 20x4   │              │   MLX90614   │ │
-  │  │ (0x27)     │              │   (0x5A)     │ │
-  │  │            │              │              │ │
-  │  │ Keypad 4x4 │              │   DS3231 RTC │ │
-  │  │ (0x20)     │              │   (0x68)     │ │
-  │  └────────────┘              │              │ │
-  │                 ┌────────────┤              │ │
-  │                 │ Gate:32    │              │ │
-  │                 │ Zero:35    │  Dimmer AC   │ │
-  │                 │            │  → Blower    │ │
-  │                 │ Servo:13   │              │ │
-  │                 │            │  MG996R      │ │
-  │                 │ EnA:25     │              │ │
-  │                 │ EnB:33     │  Encoder     │ │
-  │                 │            │  (RPM)       │ │
-  │                 │ RX:16      │              │ │
-  │                 │ TX:17      │  PZEM-004T   │ │
-  │                 │ CS:5       │              │ │
-  │                 │ MOSI:23    │  SD Card     │ │
-  │                 │ MISO:19    │              │ │
-  │                 │ SCK:18     │              │ │
-  └─────────────────┴────────────┴──────────────┘
-```
+| | |
+|---|---|
+| 🔥 **Hybrid Fuzzy + FoPID** | Pemetaan error→blower asimetris untuk plant non-monoton |
+| 🧵 **Dual-core FreeRTOS** | Kontrol real-time (core 1) terpisah dari web/UI (core 0), non-blocking |
+| 🛡️ **Safety supervisor** | Over-temp, sensor gagal, e-stop, auto-stop durasi — selalu jalan |
+| 🌐 **Dashboard offline** | Tanpa CDN (Tailwind/Chart.js dibuang) → tetap jalan saat konek ke AP alat |
+| 🕹️ **Dua antarmuka** | LCD 20x4 + keypad **dan** web — keduanya lewat *command queue* (anti-konflik) |
+| 💾 **Data logger** | CSV ke SD card, unduh via web |
+| 🧪 **Simulator** | `tools/control_sim.py` — digital-twin untuk tuning tanpa alat |
 
----
+## 📸 Tampilan
 
-## Software Setup
+| Desktop | Mobile |
+|:---:|:---:|
+| <img src="docs/dashboard-desktop.png" width="100%"> | <img src="docs/dashboard-mobile.png" width="55%"> |
 
-### 1. Arduino IDE
+## 🧠 Metode Kontrol — *inti proyek*
 
-**Board settings:**
-```
-Board: ESP32 Dev Module
-Upload Speed: 921600
-CPU Freq: 240MHz (WiFi/BT)
-Flash Size: 4MB (32Mb)
-Partition Scheme: Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)
-```
-
-### 2. Libraries
-
-Install via Library Manager:
+Blower **tidak** linear terhadap suhu. Hasil karakterisasi alat:
 
 ```
-LiquidCrystal I2C          — LCD 20x4
-Adafruit MLX90614           — Sensor suhu
-RTClib                      — DS3231 RTC
-PZEM004Tv30                 — Power meter
-ESP32Servo                  — Servo motor
-ESP Async WebServer         — Web server
-ArduinoJson                 — JSON (v7+)
+ efek ke suhu biji:
+   0–10%  → mendinginkan   (aliran kecil, kalor burner tak terbawa)
+  20–30%  → MEMANASKAN     (aliran optimal; puncak transfer panas ~25%)
+  30–85%  → mendinginkan   (aliran berlebih, kalor terbuang)
 ```
 
-Library manual (dari GitHub):
-- **I2CKeyPad** — Keypad 4x4 I2C
-- **RBDdimmer** — AC dimmer
+Karena hubungannya berbentuk **bukit** (puncak ~25%), kontroler dijaga **monoton** dengan
+beroperasi di sisi kanan puncak `[25..85]%`: **25% = panas maks · 30% = hold di setpoint · 85% = dingin maks**.
 
-### 3. Upload Firmware
+<details>
+<summary><b>Rincian Fuzzy + FoPID</b> (klik)</summary>
 
+- **FIS** (`Fis_Header.h`): 5 MF error × 3 MF Δerror → centroid, output di-MF-kan ke `[22..90]%`
+  dengan band panas (25–30) sempit & band dingin (30–85) lebar.
+- **FoPID** (`control.cpp`): dihitung dalam **°C**, koreksi *dikurangi* dari FIS
+  (`BLOWER_IS_COOLER`) → saat dingin blower turun ke ~25 (memanaskan), saat overshoot blower naik (mendinginkan).
+- Semua parameter (`Kp Ki Kd λ µ β`, setpoint, durasi, sudut gas) **dapat di-tune** dan
+  default-nya di `config.h`.
+
+**Hasil simulasi** (`tools/control_sim.py`):
+
+| Skenario | Hasil |
+|---|---|
+| 28 → 60 °C | settle **60.0 °C**, blower 30%, overshoot ~0.2 °C |
+| di 58 °C (saat naik) | blower **25% → memanaskan** ✅ |
+| 70 → 60 °C | blower 69% (dingin) → settle 60.0 |
+| Setpoint 75 °C | settle **75.0 °C**, err 0.00 |
+
+</details>
+
+## 🏗️ Arsitektur
+
+```mermaid
+flowchart LR
+  subgraph C1["Core 1 — real-time"]
+    RT["realtimeTask 100ms<br/>sensor→safety→kontrol→aktuator"]
+  end
+  subgraph C0["Core 0 — I/O"]
+    UI[uiTask LCD+keypad]
+    WS[wsTask WebSocket]
+    LOG[logTask SD]
+    PZ[pzemTask]
+    NET[(AsyncWebServer)]
+  end
+  UI & NET -->|command queue| RT
+  RT -->|SystemState snapshot| UI & WS
+  WS <--> NET
 ```
-Sketch → Upload
+
+Operating state machine:
+
+```mermaid
+stateDiagram-v2
+  [*] --> IDLE
+  IDLE --> RUNNING: Start (fuzzy/manual)
+  RUNNING --> FINISHED: durasi habis
+  RUNNING --> FAULT: over-temp / sensor / e-stop
+  FINISHED --> IDLE: reset
+  FAULT --> IDLE: reset (suhu aman)
 ```
 
-### 4. Upload Data Web (LittleFS)
+> Rancangan lengkap: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
-```
-Tools → ESP32 LittleFS Data Upload
-```
+## 🔩 Hardware & Pinout
 
-Atau PlatformIO:
+<details>
+<summary><b>Daftar komponen & pin</b> (klik)</summary>
+
+| Komponen | Fungsi | Pin ESP32 |
+|---|---|---|
+| MLX90614 | Sensor suhu IR (I2C) | SDA 21 · SCL 22 |
+| DS3231 | RTC (I2C) | SDA 21 · SCL 22 |
+| LCD 20x4 (0x27) + Keypad 4x4 (0x20) | Antarmuka lokal | SDA 21 · SCL 22 |
+| Dimmer AC (RBDdimmer) | Blower | gate 32 · zero-cross 35 |
+| Servo MG996R | Katup gas | 13 |
+| Encoder 500 PPR | RPM drum | A 25 · B 33 |
+| PZEM-004T | Power meter (UART) | RX 16 · TX 17 |
+| SD Card (SPI) | Data logger | CS 5 · SCK 18 · MISO 19 · MOSI 23 |
+| LED indikator | Status | 12 |
+
+</details>
+
+## 🚀 Mulai Cepat
+
+<details>
+<summary><b>Build & flash dengan arduino-cli</b> (klik)</summary>
+
 ```bash
-pio run --target upload && pio run --target uploadfs
+# 1. Core ESP32 (sekali saja)
+arduino-cli core install esp32:esp32
+
+# 2. Library
+arduino-cli lib install "Adafruit MLX90614 Library" "RTClib" "PZEM004Tv30" \
+  "ESP32Servo" "LiquidCrystal I2C" "ArduinoJson" "I2CKeyPad" \
+  "AsyncTCP" "ESPAsyncWebServer"
+# RBDdimmer (dari GitHub) — patch core 3.x: esp_intr.h→esp_intr_alloc.h, API timer baru
+arduino-cli lib install --git-url https://github.com/RobotDynOfficial/RBDDimmer.git
+
+# 3. Kredensial WiFi
+cp ESP32_Firmware/secrets.h.example ESP32_Firmware/secrets.h   # lalu isi SSID/PASS
+
+# 4. Compile & upload
+arduino-cli compile --fqbn esp32:esp32:esp32 ESP32_Firmware
+arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 ESP32_Firmware
+
+# 5. Upload web (LittleFS) — folder ESP32_Firmware/data → partisi LittleFS
 ```
 
----
+> Buka dashboard di **`http://kopi.local`** atau IP ESP32 (atau konek ke AP `Kopi-Control`).
 
-## Cara Penggunaan
+</details>
 
-### Navigasi Keypad
+## 🕹️ Pemakaian
 
+- **Keypad:** `A/B` navigasi · `C` pilih/ubah · `D` kembali · `*` STOP (di monitor).
+- **Web:** atur setpoint / sudut gas / durasi → **Mulai Fuzzy** atau **Mulai Manual** → pantau kurva.
+- **Darurat:** tombol **BERHENTI DARURAT** (web) → gas tutup + blower mati.
+
+## 🌐 Kontrak Web (WebSocket & REST)
+
+<details>
+<summary><b>Pesan & endpoint</b> (klik)</summary>
+
+**WebSocket `/ws`** (server→klien, 500 ms): `temp, setpoint, error, blower, servo, rpm, power, fault, opState, …`
+**Perintah** (klien→server): `{start:'FUZZY'|'MANUAL'}` · `{stop}` · `{estop}` · `{reset}` · `{setpoint}` · `{servo}` · `{blower}` · `{duration}`
+
+| REST | Fungsi |
+|---|---|
+| `GET /api/status` | snapshot JSON |
+| `GET /api/logs` | daftar CSV |
+| `GET /api/download?file=` | unduh CSV |
+
+</details>
+
+## 🧪 Simulasi
+
+```bash
+python3 tools/control_sim.py
 ```
-┌───┬───┬───┬───┐
-│ 1 │ 2 │ 3 │ A │  A = Up / Previous
-├───┼───┼───┼───┤
-│ 4 │ 5 │ 6 │ B │  B = Down / Next
-├───┼───┼───┼───┤
-│ 7 │ 8 │ 9 │ C │  C = Enter / Confirm
-├───┼───┼───┼───┤
-│ * │ 0 │ # │ D │  D = Back / Cancel
-└───┴───┴───┴───┘
-```
+Digital-twin kontroler (FIS+FoPID identik firmware) + model plant. Pakai untuk menalakan
+parameter & memverifikasi respons sebelum ke alat.
 
-### Langkah Operasi
+## 🗺️ Roadmap
 
-1. **Startup**: LCD tampil splash → "v19+WS: Ready"
-2. **Pilih Mode**: `Run Mode` → `FoPID+Fuzzy`
-3. **Set Servo**: Masukkan sudut servo (0-180°) → `C` set, `D` lanjut
-4. **Auto-Record**: Logging otomatis ke SD card + countdown
-5. **Monitor**: Tekan `C` untuk ganti halaman (suhu, RPM, debug PID)
-6. **Selesai**: Countdown habis → blower mati, servo tutup, log tersimpan
+- [x] Refactor modular + dual-core FreeRTOS + safety supervisor
+- [x] Metode kontrol blower non-monoton (fuzzy + FoPID) + simulator
+- [x] Dashboard offline + responsif
+- [ ] Sinkronisasi input web (load sekali, tak menimpa saat mengetik)
+- [ ] Data logger 5 dtk + tab grafik (skala sepanjang durasi, t₀ = saat mulai)
+- [ ] Tuning parameter fuzzy/PID dari web + simpan ke NVS (Preferences)
+- [ ] **Tab Wafi** — kontrol suhu (+ input freq motor; gas & kecepatan konstan)
+- [ ] **Tab Fadel** — kontrol kecepatan: PID VFD via **Modbus RTU** ([panduan](VFD_Modbus_ESP32_MAX485.md)), EMA filter encoder
 
-### Web Dashboard
+## 👥 Kredit
 
-Buka browser di perangkat同一 jaringan:
+| Peran | Fokus |
+|---|---|
+| **Wafi** | Kontrol **suhu** (fuzzy + FoPID pada blower) |
+| **Fadel** | Kontrol **kecepatan** motor (PID + VFD Modbus RTU) |
 
-```
-http://kopi.local
-```
-
-Atau pakai IP (cek Serial Monitor).
-
-**Fitur:**
-- Grafik suhu real-time (Chart.js, update 500ms)
-- Kontrol setpoint dan servo
-- Mode Fuzzy start / EMERGENCY STOP
-- Download file log CSV dari SD Card
-
----
-
-## Sistem Kontrol
-
-### Hybrid: Fuzzy + FoPID
-
-```
-Error °C ──►┌──────────┐             ┌──────────┐
-             │ FIS      │──► 30-75% ──┤          │
-             │ (5 MF)   │             │ Dimmer   │──► Blower
-Error %  ──►├──────────┤             │ Raw      │
-             │ FoPID    │──► ±15 ──►  │ (clamp)  │
-             │ (frac.)  │   ×β=0.4   └──────────┘
-             └──────────┘
-```
-
-**FIS (Fuzzy Inference System):**
-- Input 1: Error suhu (°C), range [-10, 40], 5 MF segitiga
-- Input 2: Delta error, range [0, 5], 3 MF
-- Output: Kecepatan blower (%), range [30, 75], 5 MF
-- Defuzzifikasi: Centroid, 15 rule
-
-**FoPID (Fractional Order PID):**
-- Kp=0.60, Ki=0.08, Kd=0.50
-- Lambda (integral) = 0.90, Mu (derivative) = 0.92
-- Anti-windup: integral clip ±40, decay 0.96x saat <2°C dari SP
-- Beta blower = 0.40 (bobot koreksi FoPID ke dimmer)
-
-### Safety
-
-| Kondisi | Aksi |
-|---------|------|
-| Sensor error (T<0 atau T>150°C) | Emergency stop |
-| Over-temperature (>120°C) | Emergency stop |
-| RPM > 39 atau < 23 | Warning/Sesuaikan |
-| WiFi disconnect | Auto-reconnect + AP fallback |
-| Power loss | NVS menyimpan sudut servo |
-
----
-
-## API Web Server
-
-| Endpoint | Method | Deskripsi |
-|----------|--------|-----------|
-| `/` | GET | Dashboard HTML |
-| `/api/status` | GET | JSON status terkini |
-| `/api/setpoint` | POST | Set suhu (body: `value=60.0`) |
-| `/api/servo` | POST | Set servo (body: `angle=90`) |
-| `/api/stop` | POST | Emergency stop |
-| `/api/logs` | GET | Daftar file CSV di SD |
-| `/api/download?file=...` | GET | Download file CSV |
-| `/ws` | WebSocket | Real-time JSON stream |
-
-### WebSocket JSON Format (500ms)
-
-```json
-{
-  "temp": 58.5,
-  "setpoint": 60.0,
-  "error": 1.5,
-  "blower": 64,
-  "servo": 90,
-  "rpm": 32.5,
-  "power": 1500,
-  "mode": "FUZZY",
-  "fisOut": 63.5,
-  "u_fopid": 0.45
-}
-```
-
----
-
-## Parameter Tuning
-
-### Via LCD Menu
-
-`Set Params` → `Fuzzy & FoPID`:
-
-| Parameter | Default | Range | Fungsi |
-|-----------|---------|-------|--------|
-| Kp | 0.60 | 0-5 | Proportional gain |
-| Ki | 0.08 | 0-1 | Integral gain |
-| Kd | 0.50 | 0-3 | Derivative gain |
-| Lambda | 0.90 | 0-1 | Fractional integral order |
-| Mu | 0.92 | 0-1 | Fractional derivative order |
-| Beta | 0.40 | 0-1 | FoPID blending factor |
-| SetPoint | 60.0 | 30-120 | Target suhu (°C) |
-
-### Countdown Duration
-
-Min: 10 menit, Max: 200 menit (default: 75)
-
----
-
-## File Structure
-
-```
-├── ESP32_Firmware/
-│   ├── ESP32_Firmware.ino     # Main firmware
-│   ├── Fis_Header.h           # Fuzzy Inference System (v19)
-│   └── data/
-│       ├── index.html         # Web dashboard
-│       ├── app.js             # WebSocket + Chart.js client
-│       └── style.css          # Dashboard styling
-├── Fis_Header_v19.h           # Backup FIS header
-├── FoPID_Fuzzy_Blower_v19.ino # Backup main sketch
-├── README.md
-└── .gitignore
-```
-
----
-
-## Troubleshooting
-
-| Masalah | Solusi |
-|---------|--------|
-| LCD tidak tampil | Cek alamat I2C (0x27), pull-up resistor 4.7kΩ |
-| Sensor MLX error | Pastikan kabel terhubung, cek alamat (0x5A) |
-| Web tidak bisa diakses | Pastikan satu jaringan WiFi, coba `http://192.168.x.x` |
-| Kompilasi error `esp_intr.h` | Update RBDdimmer library (patch untuk ESP32 Core v3.x) |
-| LED tidak menyala | Cek pin 12, pastikan PWM channel OK |
-| Servo tidak bergerak | Cek power supply 5V, pin 13 |
-
----
-
-## License
+## 📄 Lisensi
 
 MIT

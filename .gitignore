@@ -12,3 +12,6 @@ Thumbs.db
 
 # Build artefak arduino-cli
 ESP32_Firmware/build/
+
+# Kredensial (jangan push)
+ESP32_Firmware/secrets.h
