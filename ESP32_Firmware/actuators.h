@@ -10,11 +10,9 @@
 void actuatorsInit();
 void actuatorSetBlower(int pct);                 // clamp [DIMMER_MIN..DIMMER_MAX]
 int  actuatorGetBlower();
-void actuatorSetServo(int deg, bool persist = false);
+void actuatorSetServo(int deg);                  // persist ditangani params.*
 int  actuatorGetServo();
 void actuatorLed(uint8_t opState);               // pola LED per operating state
 void actuatorsSafeState();                        // gas tutup (0°) + blower 0%
-void servoSaveNVS();
-void servoLoadNVS();
 
 #endif // ACTUATORS_H

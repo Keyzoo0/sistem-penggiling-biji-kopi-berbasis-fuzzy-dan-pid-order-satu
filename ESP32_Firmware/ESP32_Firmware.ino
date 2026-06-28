@@ -20,6 +20,7 @@
 #include "logging.h"
 #include "ui.h"
 #include "webserver.h"
+#include "params.h"
 
 // =============================================================================
 //  Transisi state (dipanggil hanya dari realtimeTask)
@@ -91,12 +92,12 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
       break;
 
     case CMD_SET_SETPOINT:
-      st.setPoint = c.fval;
+      st.setPoint = c.fval; paramsSave(st);
       break;
 
     case CMD_SET_SERVO:
       st.servoDeg = constrain((int)c.ival, 0, SERVO_MAX);
-      actuatorSetServo(st.servoDeg, true);
+      actuatorSetServo(st.servoDeg); paramsSave(st);
       break;
 
     case CMD_SET_BLOWER:
@@ -106,10 +107,15 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
 
     case CMD_SET_DURATION:
       st.durationMin = constrain((uint32_t)c.ival, DURATION_MIN_LIMIT, DURATION_MAX_LIMIT);
+      paramsSave(st);
       break;
 
     case CMD_SET_PARAM:
-      applyParam(st, (ParamId)c.ival, c.fval);
+      applyParam(st, (ParamId)c.ival, c.fval); paramsSave(st);
+      break;
+
+    case CMD_SET_FREQ:
+      st.freqMotor = constrain(c.fval, 0.0f, FREQ_MOTOR_MAX); paramsSave(st);
       break;
 
     default: break;
@@ -129,6 +135,7 @@ static void publishState(const SystemState& st) {
   g_state.logging = st.logging; g_state.runStartMs = st.runStartMs; g_state.durationMin = st.durationMin;
   g_state.Kp = st.Kp; g_state.Ki = st.Ki; g_state.Kd = st.Kd;
   g_state.lambda = st.lambda; g_state.mu = st.mu; g_state.beta = st.beta;
+  g_state.freqMotor = st.freqMotor;
   memcpy(g_state.logFile, st.logFile, sizeof(g_state.logFile));
   STATE_UNLOCK();
 }
@@ -243,8 +250,9 @@ void setup() {
   uiInit();
   safetyInit();
 
+  paramsLoad(g_state);                  // tunables + servo + freq dari NVS (default config bila kosong)
+  actuatorSetServo(g_state.servoDeg);   // pasang servo ke posisi tersimpan
   STATE_LOCK();
-  g_state.servoDeg = actuatorGetServo();
   g_state.opState  = ST_IDLE;
   STATE_UNLOCK();
 

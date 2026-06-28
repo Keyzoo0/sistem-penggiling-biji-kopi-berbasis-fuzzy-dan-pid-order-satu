@@ -17,7 +17,7 @@ enum RpmStatus  : uint8_t { RPMS_STARTUP, RPMS_NORMAL, RPMS_WARN_LOW,
 enum CmdType : uint8_t {
   CMD_NONE, CMD_START, CMD_STOP, CMD_ESTOP, CMD_RESET,
   CMD_SET_SETPOINT, CMD_SET_SERVO, CMD_SET_BLOWER,
-  CMD_SET_DURATION, CMD_SET_PARAM
+  CMD_SET_DURATION, CMD_SET_PARAM, CMD_SET_FREQ
 };
 enum ParamId : uint8_t { P_KP, P_KI, P_KD, P_LAMBDA, P_MU, P_BETA };
 
@@ -50,8 +50,9 @@ struct SystemState {
   uint32_t  durationMin;
   char      logFile[32];
 
-  // tunable
+  // tunable (di-persist ke NVS via params.*)
   float Kp, Ki, Kd, lambda, mu, beta;
+  float freqMotor;        // Wafi: kecepatan motor konstan (Hz, via VFD)
 };
 
 #endif // TYPES_H

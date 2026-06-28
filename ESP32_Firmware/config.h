@@ -62,6 +62,9 @@
 #define DURATION_MIN_LIMIT  10UL
 #define DURATION_MAX_LIMIT 200UL
 
+#define DEF_FREQ_MOTOR    50.0f   // Hz — Wafi: kecepatan motor konstan (via VFD)
+#define FREQ_MOTOR_MAX    50.0f
+
 // FoPID clamp & decay
 #define FOPID_U_CLAMP     14.0f
 #define FOPID_I_CLAMP     60.0f

@@ -89,8 +89,7 @@ function render(d) {
   sTag.textContent = d.mlxOk ? 'sensor ok' : 'sensor gagal';
   sTag.className = 'tag ' + (d.mlxOk ? 'ok' : 'bad');
 
-  // servo input mirror (hanya bila tidak sedang difokus)
-  if (document.activeElement !== $('inServo')) $('inServo').value = d.servo;
+  // (input setpoint/servo/durasi TIDAK ditimpa telemetri — di-load sekali via loadParams)
 
   // tombol per-state
   const idle = d.opState === 'IDLE', run = d.opState === 'RUNNING', halted = d.opState === 'FAULT' || d.opState === 'FINISHED';
@@ -138,7 +137,17 @@ function loadLogs() {
   }).catch(() => { $('logs').innerHTML = '<span class="empty">Gagal memuat daftar.</span>'; });
 }
 
+// Load nilai input SEKALI saat akses (tidak ditimpa telemetri terus-menerus)
+function loadParams() {
+  fetch('/api/params').then(r => r.json()).then(p => {
+    if (p.setpoint != null) $('inSp').value = p.setpoint;
+    if (p.servo != null)    $('inServo').value = p.servo;
+    if (p.duration != null) $('inDur').value = p.duration;
+  }).catch(() => {});
+}
+
 Roast.resize();
 connect();
+loadParams();
 loadLogs();
 setInterval(loadLogs, 15000);

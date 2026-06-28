@@ -3,20 +3,17 @@
 #include "types.h"
 #include <RBDdimmer.h>
 #include <ESP32Servo.h>
-#include <Preferences.h>
 
 static dimmerLamp dimmer(PIN_DIMMER, PIN_ZEROCROSS);
 static Servo      servo1;
-static Preferences prefs;
 static int s_blower = 0;
-static int s_servo  = SERVO_MAX;
+static int s_servo  = 90;   // default; ditimpa paramsLoad()+actuatorSetServo() di setup()
 
 void actuatorsInit() {
   dimmer.begin(NORMAL_MODE, ON);
   dimmer.setPower(0);
   s_blower = 0;
 
-  servoLoadNVS();
   servo1.setPeriodHertz(50);
   servo1.attach(PIN_SERVO, 500, 2400);
   servo1.write(s_servo);
@@ -32,11 +29,10 @@ void actuatorSetBlower(int pct) {
 }
 int actuatorGetBlower() { return s_blower; }
 
-void actuatorSetServo(int deg, bool persist) {
+void actuatorSetServo(int deg) {
   deg = constrain(deg, 0, SERVO_MAX);
   s_servo = deg;
   servo1.write(deg);
-  if (persist) servoSaveNVS();
 }
 int actuatorGetServo() { return s_servo; }
 
@@ -52,16 +48,4 @@ void actuatorLed(uint8_t opState) {
     case ST_FINISHED: ledcWrite(PIN_LED, ((millis() / 600) % 2) ? 180 : 0); break;
     default:          ledcWrite(PIN_LED, 20);  break;   // IDLE: redup
   }
-}
-
-void servoSaveNVS() {
-  prefs.begin("servocal", false);
-  prefs.putInt("angle", s_servo);
-  prefs.end();
-}
-void servoLoadNVS() {
-  prefs.begin("servocal", false);
-  s_servo = prefs.getInt("angle", SERVO_MAX);
-  prefs.end();
-  s_servo = constrain(s_servo, 0, SERVO_MAX);
 }

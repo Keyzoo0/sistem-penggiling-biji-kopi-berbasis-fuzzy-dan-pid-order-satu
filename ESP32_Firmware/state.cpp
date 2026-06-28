@@ -24,6 +24,7 @@ void stateInit() {
   g_state.blowerPct   = 0;
   g_state.Kp = DEF_KP; g_state.Ki = DEF_KI; g_state.Kd = DEF_KD;
   g_state.lambda = DEF_LAMBDA; g_state.mu = DEF_MU; g_state.beta = DEF_BETA;
+  g_state.freqMotor   = DEF_FREQ_MOTOR;
   g_state.rpmStatus   = RPMS_STARTUP;
   g_state.logFile[0]  = '\0';
 }

@@ -60,6 +60,16 @@ static String buildJson() {
   String out; serializeJson(doc, out); return out;
 }
 
+static String buildParamsJson() {
+  SystemState st; stateGet(st);
+  JsonDocument doc;
+  doc["Kp"] = st.Kp; doc["Ki"] = st.Ki; doc["Kd"] = st.Kd;
+  doc["lambda"] = st.lambda; doc["mu"] = st.mu; doc["beta"] = st.beta;
+  doc["setpoint"] = st.setPoint; doc["duration"] = (long)st.durationMin;
+  doc["servo"] = st.servoDeg; doc["freq"] = st.freqMotor;
+  String o; serializeJson(doc, o); return o;
+}
+
 static void handleWsText(uint8_t* data, size_t len) {
   JsonDocument doc;
   if (deserializeJson(doc, (const char*)data, len)) return;
@@ -75,6 +85,13 @@ static void handleWsText(uint8_t* data, size_t len) {
   if (!doc["servo"].isNull())    cmdSendT(CMD_SET_SERVO, 0, doc["servo"].as<int>());
   if (!doc["blower"].isNull())   cmdSendT(CMD_SET_BLOWER, 0, doc["blower"].as<int>());
   if (!doc["duration"].isNull()) cmdSendT(CMD_SET_DURATION, 0, doc["duration"].as<int>());
+  if (!doc["kp"].isNull())     cmdSendT(CMD_SET_PARAM, doc["kp"].as<float>(),     P_KP);
+  if (!doc["ki"].isNull())     cmdSendT(CMD_SET_PARAM, doc["ki"].as<float>(),     P_KI);
+  if (!doc["kd"].isNull())     cmdSendT(CMD_SET_PARAM, doc["kd"].as<float>(),     P_KD);
+  if (!doc["lambda"].isNull()) cmdSendT(CMD_SET_PARAM, doc["lambda"].as<float>(), P_LAMBDA);
+  if (!doc["mu"].isNull())     cmdSendT(CMD_SET_PARAM, doc["mu"].as<float>(),     P_MU);
+  if (!doc["beta"].isNull())   cmdSendT(CMD_SET_PARAM, doc["beta"].as<float>(),   P_BETA);
+  if (!doc["freq"].isNull())   cmdSendT(CMD_SET_FREQ,  doc["freq"].as<float>());
 }
 
 static void onWsEvent(AsyncWebSocket* s, AsyncWebSocketClient* c, AwsEventType type,
@@ -117,6 +134,9 @@ void webInit() {
 
   server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* r) {
     r->send(200, "application/json", buildJson());
+  });
+  server.on("/api/params", HTTP_GET, [](AsyncWebServerRequest* r) {
+    r->send(200, "application/json", buildParamsJson());
   });
   server.on("/api/logs", HTTP_GET, [](AsyncWebServerRequest* r) {
     r->send(200, "application/json", loggingListJson());
