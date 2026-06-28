@@ -9,3 +9,6 @@ __pycache__/
 *.hex
 .DS_Store
 Thumbs.db
+
+# Build artefak arduino-cli
+ESP32_Firmware/build/

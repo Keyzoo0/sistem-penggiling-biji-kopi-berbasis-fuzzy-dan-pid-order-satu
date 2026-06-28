@@ -1,0 +1,118 @@
+#include "logging.h"
+#include "config.h"
+#include "state.h"
+#include "sensors.h"      // rtcNow()
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+
+static File s_file;
+static bool s_open = false;
+static bool s_sdOk = false;
+
+bool loggingReady() { return s_sdOk; }
+
+void loggingInit() {
+  SD_LOCK();
+  s_sdOk = SD.begin(PIN_SD_CS);
+  SD_UNLOCK();
+  Serial.println(s_sdOk ? "[SD] OK" : "[SD] FAIL");
+}
+
+static void tsNow(char* buf, size_t n) {
+  DateTime now = rtcNow();
+  snprintf(buf, n, "%04d-%02d-%02d %02d:%02d:%02d",
+           now.year(), now.month(), now.day(),
+           now.hour(), now.minute(), now.second());
+}
+
+static void genName(char* buf, size_t n) {
+  for (int i = 1; i <= 999; i++) {
+    snprintf(buf, n, "/log_fuzzy_%03d.csv", i);
+    if (!SD.exists(buf)) break;
+  }
+}
+
+bool loggingStart(SystemState& st) {
+  if (!s_sdOk) { st.logging = false; return false; }
+  SD_LOCK();
+  if (s_open && s_file) { s_file.close(); s_open = false; }
+  genName(st.logFile, sizeof(st.logFile));
+  s_file = SD.open(st.logFile, FILE_WRITE);
+  bool ok = (bool)s_file;
+  if (ok) {
+    char tb[24]; tsNow(tb, sizeof(tb));
+    s_file.printf("# Kopi Control | Start:%s | SP:%.1fC Kp:%.3f Ki:%.3f Kd:%.3f beta:%.2f | Servo:%d | Dur:%lumnt\n",
+                  tb, st.setPoint, st.Kp, st.Ki, st.Kd, st.beta,
+                  st.servoDeg, (unsigned long)st.durationMin);
+    s_file.println("DateTime,Suhu_C,SetPoint_C,Error_C,dError_C,U_FoPID,Integral,Derivative,"
+                   "FIS_Out,Blower_pct,Servo,RPM,Voltage,Current,Power,PF,OpState,SubMode,RpmStatus");
+    s_file.flush();
+    s_open = true;
+  } else {
+    Serial.printf("[SD] gagal buka %s\n", st.logFile);
+  }
+  SD_UNLOCK();
+  st.logging = ok;
+  return ok;
+}
+
+void loggingStop(SystemState& st) {
+  SD_LOCK();
+  if (s_open && s_file) { s_file.flush(); s_file.close(); s_open = false; }
+  SD_UNLOCK();
+  st.logging = false;
+}
+
+void loggingAppend(const SystemState& st) {
+  if (!s_sdOk) return;
+  SD_LOCK();
+  // Hanya tulis bila file memang terbuka (dibuka loggingStart). Tidak reopen di sini
+  // agar tak ada baris ekstra akibat snapshot logTask yang basi sesudah loggingStop.
+  if (s_open && s_file) {
+    char tb[24]; tsNow(tb, sizeof(tb));
+    s_file.printf("%s,%.2f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%d,%d,%.2f,%.1f,%.2f,%.1f,%.2f,%d,%d,%d\n",
+                  tb, st.suhu, st.setPoint, st.error, st.dError,
+                  st.uFopid, st.integral, st.derivative, st.fisOut,
+                  st.blowerPct, st.servoDeg, st.rpm,
+                  st.voltage, st.current, st.power, st.pf,
+                  (int)st.opState, (int)st.subMode, (int)st.rpmStatus);
+    s_file.flush();
+  }
+  SD_UNLOCK();
+}
+
+String loggingListJson() {
+  String json = "[";
+  SD_LOCK();
+  if (s_sdOk) {
+    File root = SD.open("/");
+    if (root) {
+      File f = root.openNextFile();
+      bool first = true;
+      while (f) {
+        if (!f.isDirectory()) {
+          String n = f.name();
+          if (n.startsWith("/")) n = n.substring(1);
+          if (n.endsWith(".csv")) {
+            if (!first) json += ",";
+            json += "\"" + n + "\"";
+            first = false;
+          }
+        }
+        f = root.openNextFile();
+      }
+      root.close();
+    }
+  }
+  SD_UNLOCK();
+  json += "]";
+  return json;
+}
+
+bool loggingFileExists(const String& path) {
+  SD_LOCK();
+  bool e = s_sdOk && SD.exists(path);
+  SD_UNLOCK();
+  return e;
+}

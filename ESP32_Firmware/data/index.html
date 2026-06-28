@@ -1,104 +1,102 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kopi Control</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#161009">
+<title>Kopi Control</title>
+<link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <nav class="bg-gray-800 border-b border-gray-700 px-4 py-3">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold text-amber-400">Kopi Control v19+WS</h1>
-            <div class="flex items-center gap-4">
-                <span id="connectionStatus" class="px-3 py-1 rounded text-sm bg-red-600">Disconnected</span>
-                <span id="modeBadge" class="px-3 py-1 rounded text-sm bg-gray-600">NONE</span>
-            </div>
-        </div>
-    </nav>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <b>KOPI<span class="dot">·</span>KONTROL</b>
+      <span>kontrol suhu sangrai biji kopi</span>
+    </div>
+    <div class="top-right">
+      <span class="conn" id="conn"><i></i><span id="connText">menyambung…</span></span>
+      <span class="pill s-idle" id="statePill">SIAGA</span>
+    </div>
+  </header>
 
-    <main class="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div class="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="stat-card">
-                <div class="stat-label">Temperature</div>
-                <div class="stat-value" id="tempValue">0.0<span class="text-lg">°C</span></div>
-                <div class="stat-detail" id="tempDetail">SP: 60.0°C</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Blower</div>
-                <div class="stat-value" id="blowerValue">0%</div>
-                <div class="stat-detail" id="blowerDetail">Dimmer</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">RPM</div>
-                <div class="stat-value" id="rpmValue">0.0</div>
-                <div class="stat-detail" id="rpmDetail">Status: --</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Power</div>
-                <div class="stat-value" id="powerValue">0<span class="text-lg">W</span></div>
-                <div class="stat-detail" id="powerDetail">0.0V / 0.00A</div>
-            </div>
-        </div>
+  <main class="wrap">
+    <!-- HERO: kurva sangrai -->
+    <section class="card hero">
+      <div class="readout">
+        <div class="big mono"><span id="temp">0.0</span><u>°C</u></div>
+        <div class="sub mono">SP <span id="sp">60.0</span>°C · selisih <span id="err">0.0</span>°C<span id="errBad"></span></div>
+      </div>
+      <div class="rec" id="rec"><i></i><span id="recTime">00:00</span></div>
+      <div class="chart-box"><canvas id="chart"></canvas></div>
+      <div class="legend">
+        <span><i class="l-t"></i>Suhu biji</span>
+        <span><i class="l-sp"></i>Setpoint</span>
+        <span id="sensorTag" class="tag idle">sensor —</span>
+      </div>
+    </section>
 
-        <div class="lg:col-span-3 bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div class="flex justify-between items-center mb-2">
-                <h2 class="text-sm font-semibold text-gray-300">Real-time Temperature</h2>
-                <div class="flex gap-3 text-xs">
-                    <span class="flex items-center gap-1"><span class="w-3 h-0.5 rounded bg-yellow-400"></span> Temp</span>
-                    <span class="flex items-center gap-1"><span class="w-3 h-0.5 rounded bg-red-500 dashed"></span> Setpoint</span>
-                </div>
-            </div>
-            <div style="height:200px">
-                <canvas id="tempChart"></canvas>
-            </div>
-        </div>
+    <!-- KONTROL -->
+    <aside class="card ctrl span1">
+      <div class="card-h"><span class="eyebrow">Kendali</span></div>
+      <div class="field"><label>Setpoint suhu (°C)</label>
+        <div class="row"><input type="number" id="inSp" value="60" min="30" max="120" step="0.5">
+        <button class="btn set" onclick="setSp()">Set</button></div></div>
+      <div class="field"><label>Bukaan gas / servo (°)</label>
+        <div class="row"><input type="number" id="inServo" value="180" min="0" max="180">
+        <button class="btn set" onclick="setServo()">Set</button></div></div>
+      <div class="field"><label>Durasi sangrai (menit)</label>
+        <div class="row"><input type="number" id="inDur" value="75" min="10" max="200">
+        <button class="btn set" onclick="setDur()">Set</button></div></div>
+      <div id="manualBox"><label>Blower manual — <span id="manVal" class="mono">0</span>%</label>
+        <input type="range" id="inBlower" min="0" max="85" value="0" oninput="setBlower(this.value)"></div>
+      <div class="btn-grid">
+        <button class="btn fuzzy"  id="bFuzzy"  onclick="startFuzzy()">Mulai Fuzzy</button>
+        <button class="btn manual" id="bManual" onclick="startManual()">Mulai Manual</button>
+        <button class="btn stop"   id="bStop"   onclick="stopSys()">Berhenti</button>
+        <button class="btn reset"  id="bReset"  onclick="resetSys()">Reset</button>
+      </div>
+      <button class="btn estop" onclick="estop()">BERHENTI DARURAT</button>
+      <div class="internals mono">
+        <span>FIS <b id="fis">0.0</b>%</span><span>u <b id="u">0.000</b></span>
+        <span>I <b id="ival">0.00</b></span><span>D <b id="dval">0.000</b></span>
+      </div>
+    </aside>
 
-        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 class="text-sm font-semibold text-gray-300 mb-3">Controls</h2>
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Setpoint (°C)</label>
-                    <div class="flex gap-1">
-                        <input type="number" id="spInput" value="60" min="30" max="120" step="0.5"
-                               class="bg-gray-700 text-white px-2 py-1.5 rounded w-full text-sm border border-gray-600 focus:border-amber-400 focus:outline-none">
-                        <button onclick="setSetpoint()" class="bg-amber-500 hover:bg-amber-600 text-black px-3 py-1.5 rounded text-sm font-semibold">Set</button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Servo (°)</label>
-                    <div class="flex gap-1">
-                        <input type="number" id="servoInput" value="180" min="0" max="180"
-                               class="bg-gray-700 text-white px-2 py-1.5 rounded w-full text-sm border border-gray-600 focus:border-amber-400 focus:outline-none">
-                        <button onclick="setServo()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-semibold">Set</button>
-                    </div>
-                </div>
-                <hr class="border-gray-700">
-                <button onclick="toggleMode()" id="modeBtn" class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded text-sm font-semibold">Start Fuzzy Mode</button>
-                <button onclick="stopSystem()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2.5 rounded text-sm font-semibold">EMERGENCY STOP</button>
-                <hr class="border-gray-700">
-                <div class="text-xs text-gray-400 font-mono space-y-0.5">
-                    <div id="pidValues">u: 0.000  I: 0.00  D: 0.00</div>
-                    <div id="fisValues">FIS: 0.0%</div>
-                </div>
-            </div>
-        </div>
+    <!-- SIGNATURE: blower dua-arah -->
+    <section class="card blower span2">
+      <div class="card-h"><span class="eyebrow">Blower — aktuator dua arah</span>
+        <span class="mode neutral" id="blowerMode">netral</span></div>
+      <div><span class="val mono"><span id="blower">0</span><small>%</small></span></div>
+      <div class="meter">
+        <div class="fill" id="mHeat"></div>
+        <div class="fill" id="mCool"></div>
+        <div class="pivot"></div>
+      </div>
+      <div class="meter-labels"><b>◄ memanaskan</b><span>pivot 30%</span><em>mendinginkan ►</em></div>
+    </section>
 
-        <div class="lg:col-span-4 bg-gray-800 rounded-lg p-3 border border-gray-700">
-            <div class="flex justify-between items-center mb-1">
-                <span class="text-sm font-semibold text-gray-300">SD Logs</span>
-                <button onclick="refreshLogs()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-0.5 rounded">Refresh</button>
-            </div>
-            <div id="logList" class="text-xs text-gray-400 max-h-20 overflow-y-auto"></div>
-        </div>
-    </main>
+    <!-- RPM -->
+    <section class="card stat span1">
+      <div class="label">Putaran drum</div>
+      <div class="num mono"><span id="rpm">0.0</span><small> rpm</small></div>
+      <div class="meta"><span class="tag idle" id="rpmTag">—</span></div>
+    </section>
 
-    <style>
-        .dashed { border-top: 2px dashed #ef4444; height: 0; width: 12px; display: inline-block; }
-    </style>
+    <!-- Daya -->
+    <section class="card stat span1">
+      <div class="label">Daya</div>
+      <div class="num mono"><span id="power">0</span><small> W</small></div>
+      <div class="meta"><span id="volt">0.0</span>V · <span id="curr">0.00</span>A · pf <span id="pf">0.00</span></div>
+    </section>
 
-    <script src="app.js"></script>
+    <!-- Logs -->
+    <section class="card span4">
+      <div class="card-h"><span class="eyebrow">Rekaman SD</span>
+        <button class="ghost" onclick="loadLogs()">Muat ulang</button></div>
+      <div class="logs" id="logs"><span class="empty">memuat…</span></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
 </body>
 </html>
