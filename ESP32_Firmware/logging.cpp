@@ -83,8 +83,9 @@ void loggingAppend(const SystemState& st) {
   SD_LOCK();
   if (s_open && s_file) {
     char tb[24]; tsNow(tb, sizeof(tb));
+    float spCol = (st.profile == PROF_FADEL) ? st.speedSP : st.setPoint;  // SetPoint_C = target profil aktif
     s_file.printf("%s,%.2f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%d,%d,%.2f,%.1f,%.2f,%.1f,%.2f,%d,%d,%d\n",
-                  tb, st.suhu, st.setPoint, st.error, st.dError,
+                  tb, st.suhu, spCol, st.error, st.dError,
                   st.uFopid, st.integral, st.derivative, st.fisOut,
                   st.blowerPct, st.servoDeg, st.rpm,
                   st.voltage, st.current, st.power, st.pf,

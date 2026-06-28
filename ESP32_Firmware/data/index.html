@@ -9,18 +9,20 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <b>KOPI<span class="dot">·</span>KONTROL</b>
-      <span>kontrol suhu sangrai biji kopi</span>
+    <div class="brand"><b>KOPI<span class="dot">·</span>KONTROL</b></div>
+    <div class="tabs">
+      <button class="tab on" id="tabBtnWafi"  onclick="showTab('Wafi')">Wafi · Suhu</button>
+      <button class="tab"    id="tabBtnFadel" onclick="showTab('Fadel')">Fadel · Kecepatan</button>
     </div>
     <div class="top-right">
       <span class="conn" id="conn"><i></i><span id="connText">menyambung…</span></span>
       <span class="pill s-idle" id="statePill">SIAGA</span>
+      <span class="pill s-fault" id="faultBadge" style="display:none">FAULT</span>
     </div>
   </header>
 
-  <main class="wrap">
-    <!-- HERO: kurva sangrai -->
+  <!-- ════════ TAB WAFI (SUHU) ════════ -->
+  <main class="wrap" id="tabWafi">
     <section class="card hero">
       <div class="readout">
         <div class="big mono"><span id="temp">0.0</span><u>°C</u></div>
@@ -28,27 +30,22 @@
       </div>
       <div class="rec" id="rec"><i></i><span id="recTime">00:00</span></div>
       <div class="chart-box"><canvas id="chart"></canvas></div>
-      <div class="legend">
-        <span><i class="l-t"></i>Suhu biji</span>
-        <span><i class="l-sp"></i>Setpoint</span>
-        <span id="sensorTag" class="tag idle">sensor —</span>
-      </div>
+      <div class="legend"><span><i class="l-t"></i>Suhu biji</span><span><i class="l-sp"></i>Setpoint</span>
+        <span id="sensorTag" class="tag idle">sensor —</span></div>
     </section>
 
-    <!-- KONTROL -->
     <aside class="card ctrl span1">
       <div class="card-h"><span class="eyebrow">Kendali</span></div>
-      <div class="field"><label>Setpoint suhu (°C)</label>
-        <div class="row"><input type="number" id="inSp" value="60" min="30" max="120" step="0.5">
-        <button class="btn set" onclick="setSp()">Set</button></div></div>
-      <div class="field"><label>Bukaan gas / servo (°)</label>
-        <div class="row"><input type="number" id="inServo" value="180" min="0" max="180">
-        <button class="btn set" onclick="setServo()">Set</button></div></div>
-      <div class="field"><label>Durasi sangrai (menit)</label>
-        <div class="row"><input type="number" id="inDur" value="75" min="10" max="200">
-        <button class="btn set" onclick="setDur()">Set</button></div></div>
+      <div class="field"><label>Setpoint suhu (°C)</label><div class="row">
+        <input type="number" id="inSp" value="60" step="0.5"><button class="btn set" onclick="setSp()">Set</button></div></div>
+      <div class="field"><label>Bukaan gas / servo (°)</label><div class="row">
+        <input type="number" id="inServo" value="180" min="0" max="180"><button class="btn set" onclick="setServo()">Set</button></div></div>
+      <div class="field"><label>Frekuensi motor (Hz, konstan)</label><div class="row">
+        <input type="number" id="inFreq" value="50" min="0" max="50" step="0.5"><button class="btn set" onclick="setFreq()">Set</button></div></div>
+      <div class="field"><label>Durasi sangrai (menit)</label><div class="row">
+        <input type="number" id="inDur" value="75" min="10" max="200"><button class="btn set" onclick="setDur()">Set</button></div></div>
       <div id="manualBox"><label>Blower manual — <span id="manVal" class="mono">0</span>%</label>
-        <input type="range" id="inBlower" min="0" max="85" value="0" oninput="setBlower(this.value)"></div>
+        <input type="range" id="inBlower" min="0" max="100" value="0" oninput="setBlower(this.value)"></div>
       <div class="btn-grid">
         <button class="btn fuzzy"  id="bFuzzy"  onclick="startFuzzy()">Mulai Fuzzy</button>
         <button class="btn manual" id="bManual" onclick="startManual()">Mulai Manual</button>
@@ -56,64 +53,107 @@
         <button class="btn reset"  id="bReset"  onclick="resetSys()">Reset</button>
       </div>
       <button class="btn estop" onclick="estop()">BERHENTI DARURAT</button>
-      <div class="internals mono">
-        <span>FIS <b id="fis">0.0</b>%</span><span>u <b id="u">0.000</b></span>
-        <span>I <b id="ival">0.00</b></span><span>D <b id="dval">0.000</b></span>
-      </div>
+      <div class="internals mono"><span>FIS <b id="fis">0.0</b>%</span><span>u <b id="u">0.000</b></span>
+        <span>I <b id="ival">0.00</b></span><span>D <b id="dval">0.000</b></span></div>
     </aside>
 
-    <!-- SIGNATURE: blower dua-arah -->
     <section class="card blower span2">
-      <div class="card-h"><span class="eyebrow">Blower — aktuator dua arah</span>
+      <div class="card-h"><span class="eyebrow">Blower — band 20–30 memanaskan</span>
         <span class="mode neutral" id="blowerMode">netral</span></div>
       <div><span class="val mono"><span id="blower">0</span><small>%</small></span></div>
-      <div class="meter">
-        <div class="fill" id="mHeat"></div>
-        <div class="fill" id="mCool"></div>
-        <div class="pivot"></div>
-      </div>
+      <div class="meter"><div class="fill" id="mHeat"></div><div class="fill" id="mCool"></div><div class="pivot"></div></div>
       <div class="meter-labels"><b>◄ memanaskan</b><span>pivot 30%</span><em>mendinginkan ►</em></div>
     </section>
-
-    <!-- RPM -->
-    <section class="card stat span1">
-      <div class="label">Putaran drum</div>
+    <section class="card stat span1"><div class="label">Putaran drum</div>
       <div class="num mono"><span id="rpm">0.0</span><small> rpm</small></div>
-      <div class="meta"><span class="tag idle" id="rpmTag">—</span></div>
-    </section>
-
-    <!-- Daya -->
-    <section class="card stat span1">
-      <div class="label">Daya</div>
+      <div class="meta"><span class="tag idle" id="rpmTag">—</span></div></section>
+    <section class="card stat span1"><div class="label">Daya</div>
       <div class="num mono"><span id="power">0</span><small> W</small></div>
-      <div class="meta"><span id="volt">0.0</span>V · <span id="curr">0.00</span>A · pf <span id="pf">0.00</span></div>
-    </section>
+      <div class="meta"><span id="volt">0.0</span>V · <span id="curr">0.00</span>A · pf <span id="pf">0.00</span></div></section>
 
-    <!-- Riwayat data logger -->
     <section class="card span4">
-      <div class="card-h"><span class="eyebrow">Riwayat Data Logger</span>
-        <button class="ghost" onclick="loadLogs()">Muat ulang</button></div>
-      <div class="logs" id="logs"><span class="empty">memuat…</span></div>
+      <div class="card-h"><span class="eyebrow">Parameter Fuzzy & FoPID (tersimpan NVS)</span></div>
+      <div class="param-grid">
+        <div class="pf"><label>Kp</label><input type="number" id="inKp" step="0.01"><button class="btn set" onclick="setP('kp','inKp')">✓</button></div>
+        <div class="pf"><label>Ki</label><input type="number" id="inKi" step="0.01"><button class="btn set" onclick="setP('ki','inKi')">✓</button></div>
+        <div class="pf"><label>Kd</label><input type="number" id="inKd" step="0.01"><button class="btn set" onclick="setP('kd','inKd')">✓</button></div>
+        <div class="pf"><label>λ (lambda)</label><input type="number" id="inLam" step="0.01"><button class="btn set" onclick="setP('lambda','inLam')">✓</button></div>
+        <div class="pf"><label>µ (mu)</label><input type="number" id="inMu" step="0.01"><button class="btn set" onclick="setP('mu','inMu')">✓</button></div>
+        <div class="pf"><label>β (beta)</label><input type="number" id="inBeta" step="0.01"><button class="btn set" onclick="setP('beta','inBeta')">✓</button></div>
+      </div>
     </section>
   </main>
 
-  <!-- Modal grafik data logger -->
+  <!-- ════════ TAB FADEL (KECEPATAN) ════════ -->
+  <main class="wrap" id="tabFadel" style="display:none">
+    <section class="card hero">
+      <div class="readout">
+        <div class="big mono"><span id="fRpm">0.0</span><u>rpm</u></div>
+        <div class="sub mono">target <span id="fTarget">30.0</span> rpm · VFD <span id="fVfd">0.0</span> Hz</div>
+      </div>
+      <div class="rec" id="fRec"><i></i><span id="fRecTime">00:00</span></div>
+      <div class="chart-box"><canvas id="rpmChart"></canvas></div>
+      <div class="legend"><span><i class="l-rpm"></i>RPM</span><span><i class="l-sp"></i>Target</span></div>
+    </section>
+
+    <aside class="card ctrl span1">
+      <div class="card-h"><span class="eyebrow">Kendali Kecepatan</span></div>
+      <div class="field"><label>Setpoint kecepatan (rpm)</label><div class="row">
+        <input type="number" id="inSpeed" value="30" step="0.5"><button class="btn set" onclick="setSpeed()">Set</button></div></div>
+      <div class="field"><label>Bukaan gas / servo (°, konstan)</label><div class="row">
+        <input type="number" id="inServoF" value="180" min="0" max="180"><button class="btn set" onclick="setServoF()">Set</button></div></div>
+      <div class="field"><label>Blower (%, konstan)</label><div class="row">
+        <input type="number" id="inBlowerC" value="25" min="0" max="100"><button class="btn set" onclick="setBlowerC()">Set</button></div></div>
+      <div class="field"><label>Durasi (menit)</label><div class="row">
+        <input type="number" id="inDurF" value="75" min="10" max="200"><button class="btn set" onclick="setDurF()">Set</button></div></div>
+      <div class="btn-grid">
+        <button class="btn fuzzy" id="bStartF" onclick="startSpeed()">Mulai PID</button>
+        <button class="btn stop"  id="bStopF"  onclick="stopSys()">Berhenti</button>
+        <button class="btn reset" id="bResetF" onclick="resetSys()">Reset</button>
+        <button class="btn manual" onclick="estop()">E-STOP</button>
+      </div>
+    </aside>
+
+    <section class="card stat span1"><div class="label">VFD frekuensi</div>
+      <div class="num mono"><span id="fVfd2">0.0</span><small> Hz</small></div>
+      <div class="meta">via Modbus RTU</div></section>
+    <section class="card stat span1"><div class="label">Daya</div>
+      <div class="num mono"><span id="powerF">0</span><small> W</small></div>
+      <div class="meta"><span id="voltF">0.0</span>V · <span id="currF">0.00</span>A</div></section>
+    <section class="card stat span2"><div class="label">Status RPM</div>
+      <div class="num mono"><span id="fRpm2">0.0</span><small> rpm</small></div>
+      <div class="meta"><span class="tag idle" id="rpmTagF">—</span></div></section>
+
+    <section class="card span4">
+      <div class="card-h"><span class="eyebrow">Parameter PID Kecepatan (tersimpan NVS)</span></div>
+      <div class="param-grid">
+        <div class="pf"><label>Kp</label><input type="number" id="inSKp" step="0.01"><button class="btn set" onclick="setP('skp','inSKp')">✓</button></div>
+        <div class="pf"><label>Ki</label><input type="number" id="inSKi" step="0.01"><button class="btn set" onclick="setP('ski','inSKi')">✓</button></div>
+        <div class="pf"><label>Kd</label><input type="number" id="inSKd" step="0.01"><button class="btn set" onclick="setP('skd','inSKd')">✓</button></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Riwayat (bersama) -->
+  <div class="wrap"><section class="card span4">
+    <div class="card-h"><span class="eyebrow">Riwayat Data Logger (Wafi & Fadel)</span>
+      <button class="ghost" onclick="loadLogs()">Muat ulang</button></div>
+    <div class="logs" id="logs"><span class="empty">memuat…</span></div>
+  </section></div>
+
+  <!-- Modal grafik -->
   <div id="histModal" class="modal" aria-hidden="true">
     <div class="modal-box">
-      <div class="modal-head">
-        <span class="eyebrow" id="histTitle">Grafik Data Logger</span>
-        <button class="ghost" onclick="closeHist()">Tutup ✕</button>
-      </div>
+      <div class="modal-head"><span class="eyebrow" id="histTitle">Grafik Data Logger</span>
+        <button class="ghost" onclick="closeHist()">Tutup ✕</button></div>
       <div class="hist-metrics">
         <div class="hm"><span>Rise time</span><b id="mRise">–</b></div>
         <div class="hm"><span>Overshoot</span><b id="mOver">–</b></div>
         <div class="hm"><span>Osilasi</span><b id="mOsil">–</b></div>
       </div>
       <div class="hist-chart"><canvas id="histChart"></canvas></div>
-      <div class="modal-actions">
-        <a id="dlCsv" class="btn set" download href="#">Download CSV</a>
-        <button class="btn set" onclick="downloadJpg()">Download JPG</button>
-      </div>
+      <div class="modal-actions"><a id="dlCsv" class="btn set" download href="#">Download CSV</a>
+        <button class="btn set" onclick="downloadJpg()">Download JPG</button></div>
     </div>
   </div>
 

@@ -164,6 +164,23 @@ input[type=range]{width:100%;accent-color:var(--cool)}
 .modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
 .modal-actions .btn{text-decoration:none}
 
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.tabs{display:flex;gap:6px}
+.tab{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface2);
+  border:1px solid var(--line2);border-radius:999px;padding:6px 14px;cursor:pointer}
+.tab.on{color:#160d05;background:linear-gradient(180deg,#ff8a3d,#e9631c);border-color:transparent}
+.tab:hover:not(.on){color:var(--cream)}
+.legend .l-rpm{display:inline-block;width:14px;height:0;border-top:3px solid var(--cool);vertical-align:middle;margin-right:5px}
+
+/* ── Param grid (tuning) ──────────────────────────────────────────────────── */
+.param-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px}
+.pf{display:flex;flex-direction:column;gap:4px}
+.pf label{font-size:11px;color:var(--muted)}
+.pf input{width:100%;min-width:0;background:#120d07;color:var(--cream);font-family:var(--mono);font-size:13px;
+  padding:7px 8px;border:1px solid var(--line2);border-radius:var(--r-sm)}
+.pf input:focus{outline:none;border-color:var(--ember);box-shadow:0 0 0 3px rgba(255,122,47,.18)}
+.pf .btn.set{padding:6px;flex:none}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width:860px){
   .wrap{grid-template-columns:repeat(2,1fr)}
