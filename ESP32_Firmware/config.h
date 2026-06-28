@@ -24,7 +24,7 @@
 
 // ── Aktuator ─────────────────────────────────────────────────────────────────
 #define DIMMER_MIN      0
-#define DIMMER_MAX     85
+#define DIMMER_MAX    100     // kurva v2: pendinginan bisa sampai 100%
 #define SERVO_MAX      180
 
 // ── Model plant / arah kontrol (lihat ARCHITECTURE.md Bagian 3 & 9) ──────────
@@ -50,12 +50,12 @@
 
 // ── Kontrol — default (dapat diubah operator via UI/web) ─────────────────────
 #define DEF_SETPOINT     60.0f
-#define DEF_KP            0.45f
-#define DEF_KI            0.12f
-#define DEF_KD            0.20f
+#define DEF_KP            0.20f   // FoPID = trim lembut di atas kurva FIS (tunable di web)
+#define DEF_KI            0.03f
+#define DEF_KD            0.05f
 #define DEF_LAMBDA        0.90f
 #define DEF_MU            0.92f
-#define DEF_BETA          0.80f
+#define DEF_BETA          0.50f
 #define DT_FIXED          0.5f
 
 #define DEF_DURATION_MIN    75UL
@@ -67,11 +67,12 @@
 #define FOPID_I_CLAMP     60.0f
 #define FOPID_D_CLAMP     40.0f
 
-// Batas bawah keluaran KONTROL (= puncak panas ~25%; jangan ke kiri puncak)
-#define CTRL_BLOWER_MIN   25
+// Kurva v2: deadband di sekitar setpoint → blower = DEADBAND_BLOWER
+#define SP_DEADBAND_PCT   1.0f    // ±% setpoint dianggap "tercapai"
+#define DEADBAND_BLOWER   0       // 0 = mati (spec); set ~30 utk hold tanpa osilasi
 
 // FIS input mapping (°C) — rentang error termasuk overshoot
-#define FIS_ERR_MIN      -20.0f
+#define FIS_ERR_MIN      -30.0f
 #define FIS_ERR_MAX       40.0f
 
 // ── Periode task (ms) ────────────────────────────────────────────────────────
