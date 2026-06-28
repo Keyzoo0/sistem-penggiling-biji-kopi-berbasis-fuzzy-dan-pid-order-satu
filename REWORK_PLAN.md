@@ -1,8 +1,12 @@
 # Rencana Perombakan v2 — Dua Profil (Wafi: Suhu · Fadel: Kecepatan)
 
-> **Status:** DRAFT untuk diskusi. Jangan implementasi sebelum keputusan di
-> [Bagian Keputusan Terbuka](#-keputusan-terbuka-perlu-jawaban-anda) dikunci.
+> **Status:** ✅ **SEMUA FASE SELESAI & TERVERIFIKASI** (compile OK + mini-test/headless tiap chunk).
 > Acuan arsitektur dasar: [ARCHITECTURE.md](ARCHITECTURE.md).
+>
+> Ringkas yang sudah jadi: (1) params tunable + persist NVS + fix sinkron input web ·
+> (2) data logger 5 dtk folder per-profil + tab grafik riwayat (metrik rise/overshoot/osilasi,
+> penanda sentuh SP, download CSV/JPG) · (3) modul VFD Modbus RTU (CRC cocok dokumen) + EMA encoder ·
+> (4) profil Wafi/Fadel (1 firmware) + PID kecepatan VFD · (5) web 2 tab (Wafi suhu / Fadel kecepatan).
 
 ---
 

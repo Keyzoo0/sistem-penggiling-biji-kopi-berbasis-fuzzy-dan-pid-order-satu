@@ -197,11 +197,13 @@ parameter & memverifikasi respons sebelum ke alat.
 - [x] Refactor modular + dual-core FreeRTOS + safety supervisor
 - [x] Metode kontrol blower non-monoton (fuzzy + FoPID) + simulator
 - [x] Dashboard offline + responsif
-- [ ] Sinkronisasi input web (load sekali, tak menimpa saat mengetik)
-- [ ] Data logger 5 dtk + tab grafik (skala sepanjang durasi, t₀ = saat mulai)
-- [ ] Tuning parameter fuzzy/PID dari web + simpan ke NVS (Preferences)
-- [ ] **Tab Wafi** — kontrol suhu (+ input freq motor; gas & kecepatan konstan)
-- [ ] **Tab Fadel** — kontrol kecepatan: PID VFD via **Modbus RTU** ([panduan](VFD_Modbus_ESP32_MAX485.md)), EMA filter encoder
+- [x] Sinkronisasi input web (load sekali, tak menimpa saat mengetik)
+- [x] Data logger 5 dtk + tab grafik (skala sepanjang durasi, t₀, metrik rise/overshoot/osilasi, download CSV/JPG)
+- [x] Tuning parameter fuzzy/PID dari web + simpan ke NVS (Preferences)
+- [x] **Tab Wafi** — kontrol suhu (+ input freq motor; gas & kecepatan konstan)
+- [x] **Tab Fadel** — kontrol kecepatan: PID VFD via **Modbus RTU** ([panduan](VFD_Modbus_ESP32_MAX485.md)), EMA filter encoder
+
+> Rencana detail & keputusan desain: **[REWORK_PLAN.md](REWORK_PLAN.md)**.
 
 ## 👥 Kredit
 
