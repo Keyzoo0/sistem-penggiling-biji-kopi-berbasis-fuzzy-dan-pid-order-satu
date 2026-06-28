@@ -145,7 +145,8 @@ void webInit() {
     if (!r->hasParam("file")) { r->send(400, "text/plain", "missing file"); return; }
     SystemState st; stateGet(st);
     if (st.logging) { r->send(503, "text/plain", "sedang merekam; unduh setelah selesai"); return; }
-    String fn = "/" + r->getParam("file")->value();
+    String fn = r->getParam("file")->value();          // path lengkap dari /api/logs
+    if (!fn.startsWith("/log/")) { r->send(403, "text/plain", "path tidak diizinkan"); return; }
     if (!loggingFileExists(fn)) { r->send(404, "text/plain", "not found"); return; }
     r->send(SD, fn, "text/csv");
   });

@@ -145,6 +145,24 @@ input[type=range]{width:100%;accent-color:var(--cool)}
 .ghost{font-size:11px;font-family:var(--sans);color:var(--muted);background:var(--surface2);
   border:1px solid var(--line2);border-radius:6px;padding:4px 9px;cursor:pointer}
 .ghost:hover{color:var(--cream)}
+.logs button.logitem{display:block;width:100%;text-align:left;font-family:var(--mono);font-size:12.5px;
+  color:var(--muted);background:none;border:none;padding:6px 8px;border-radius:6px;cursor:pointer}
+.logs button.logitem:hover{color:var(--amber);background:var(--surface2)}
+
+/* ── Modal grafik riwayat ─────────────────────────────────────────────────── */
+.modal{position:fixed;inset:0;background:rgba(10,7,4,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal.on{display:flex}
+.modal-box{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--line2);
+  border-radius:var(--r);padding:16px;width:min(920px,96vw);max-height:92vh;overflow:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.hist-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.hm{background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px;text-align:center}
+.hm span{display:block;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px}
+.hm b{font-family:var(--mono);font-size:22px;color:var(--amber)}
+.hist-chart{height:300px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px}
+#histChart{width:100%;height:100%;display:block}
+.modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.modal-actions .btn{text-decoration:none}
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width:860px){

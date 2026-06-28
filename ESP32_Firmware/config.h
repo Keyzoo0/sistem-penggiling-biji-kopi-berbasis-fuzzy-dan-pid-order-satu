@@ -84,7 +84,7 @@
 #define ENC_PERIOD_MS      300
 #define PZEM_PERIOD_MS    1000
 #define UI_PERIOD_MS        80
-#define LOG_PERIOD_MS      500
+#define LOG_PERIOD_MS     5000    // rekam data logger tiap 5 detik
 #define WS_PERIOD_MS       500
 
 // ── Jaringan ─────────────────────────────────────────────────────────────────

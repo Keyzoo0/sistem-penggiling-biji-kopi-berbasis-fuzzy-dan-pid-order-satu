@@ -6,6 +6,9 @@
 #include "SD.h"
 #include "SPI.h"
 
+// Folder log per profil (Fadel ditambah pada chunk profil)
+#define LOG_DIR_WAFI "/log/wafi"
+
 static File s_file;
 static bool s_open = false;
 static bool s_sdOk = false;
@@ -15,6 +18,10 @@ bool loggingReady() { return s_sdOk; }
 void loggingInit() {
   SD_LOCK();
   s_sdOk = SD.begin(PIN_SD_CS);
+  if (s_sdOk) {
+    if (!SD.exists("/log"))        SD.mkdir("/log");
+    if (!SD.exists(LOG_DIR_WAFI))  SD.mkdir(LOG_DIR_WAFI);
+  }
   SD_UNLOCK();
   Serial.println(s_sdOk ? "[SD] OK" : "[SD] FAIL");
 }
@@ -28,7 +35,7 @@ static void tsNow(char* buf, size_t n) {
 
 static void genName(char* buf, size_t n) {
   for (int i = 1; i <= 999; i++) {
-    snprintf(buf, n, "/log_fuzzy_%03d.csv", i);
+    snprintf(buf, n, LOG_DIR_WAFI "/wafi_%03d.csv", i);
     if (!SD.exists(buf)) break;
   }
 }
@@ -42,7 +49,7 @@ bool loggingStart(SystemState& st) {
   bool ok = (bool)s_file;
   if (ok) {
     char tb[24]; tsNow(tb, sizeof(tb));
-    s_file.printf("# Kopi Control | Start:%s | SP:%.1fC Kp:%.3f Ki:%.3f Kd:%.3f beta:%.2f | Servo:%d | Dur:%lumnt\n",
+    s_file.printf("# Kopi Control (Wafi) | Start:%s | SP:%.1fC Kp:%.3f Ki:%.3f Kd:%.3f beta:%.2f | Servo:%d | Dur:%lumnt\n",
                   tb, st.setPoint, st.Kp, st.Ki, st.Kd, st.beta,
                   st.servoDeg, (unsigned long)st.durationMin);
     s_file.println("DateTime,Suhu_C,SetPoint_C,Error_C,dError_C,U_FoPID,Integral,Derivative,"
@@ -67,8 +74,6 @@ void loggingStop(SystemState& st) {
 void loggingAppend(const SystemState& st) {
   if (!s_sdOk) return;
   SD_LOCK();
-  // Hanya tulis bila file memang terbuka (dibuka loggingStart). Tidak reopen di sini
-  // agar tak ada baris ekstra akibat snapshot logTask yang basi sesudah loggingStop.
   if (s_open && s_file) {
     char tb[24]; tsNow(tb, sizeof(tb));
     s_file.printf("%s,%.2f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%d,%d,%.2f,%.1f,%.2f,%.1f,%.2f,%d,%d,%d\n",
@@ -82,28 +87,32 @@ void loggingAppend(const SystemState& st) {
   SD_UNLOCK();
 }
 
+// Daftar CSV (path lengkap) dari sebuah folder
+static void listDir(const char* path, String& json, bool& first) {
+  File root = SD.open(path);
+  if (!root) return;
+  File f = root.openNextFile();
+  while (f) {
+    if (!f.isDirectory()) {
+      String n = f.name();                 // bisa basename atau full path tergantung core
+      if (n.endsWith(".csv")) {
+        String full = n.startsWith("/") ? n : (String(path) + "/" + n);
+        if (!first) json += ",";
+        json += "\"" + full + "\"";
+        first = false;
+      }
+    }
+    f = root.openNextFile();
+  }
+  root.close();
+}
+
 String loggingListJson() {
   String json = "[";
   SD_LOCK();
   if (s_sdOk) {
-    File root = SD.open("/");
-    if (root) {
-      File f = root.openNextFile();
-      bool first = true;
-      while (f) {
-        if (!f.isDirectory()) {
-          String n = f.name();
-          if (n.startsWith("/")) n = n.substring(1);
-          if (n.endsWith(".csv")) {
-            if (!first) json += ",";
-            json += "\"" + n + "\"";
-            first = false;
-          }
-        }
-        f = root.openNextFile();
-      }
-      root.close();
-    }
+    bool first = true;
+    listDir(LOG_DIR_WAFI, json, first);
   }
   SD_UNLOCK();
   json += "]";

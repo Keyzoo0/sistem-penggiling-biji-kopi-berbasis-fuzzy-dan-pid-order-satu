@@ -128,14 +128,93 @@ function stopSys()  { send({ stop: true }); }
 function resetSys() { send({ reset: true }); }
 function estop()    { if (confirm('Hentikan semua sekarang? Gas tutup, blower mati.')) send({ estop: true }); }
 
+const basename = p => p.split('/').pop();
 function loadLogs() {
   fetch('/api/logs').then(r => r.json()).then(f => {
     const el = $('logs');
     el.innerHTML = f.length
-      ? f.map(n => `<a href="/api/download?file=${encodeURIComponent(n)}" target="_blank">${n}</a>`).join('')
+      ? f.map(n => `<button class="logitem" onclick="openHist('${n}')">📈 ${basename(n)}</button>`).join('')
       : '<span class="empty">Belum ada rekaman.</span>';
   }).catch(() => { $('logs').innerHTML = '<span class="empty">Gagal memuat daftar.</span>'; });
 }
+
+// ── Riwayat: grafik dari CSV + metrik + download ──────────────────────────
+let histRows = [], histStart = '';
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(l => l && !l.startsWith('#'));
+  if (!lines.length) return [];
+  const head = lines[0].split(',');
+  const iT = head.indexOf('Suhu_C'), iSP = head.indexOf('SetPoint_C'), iDt = head.indexOf('DateTime');
+  const rows = []; let t0 = null; histStart = '';
+  for (let k = 1; k < lines.length; k++) {
+    const c = lines[k].split(','); if (c.length < 3) continue;
+    const temp = parseFloat(c[iT]), sp = parseFloat(c[iSP]);
+    if (isNaN(temp) || isNaN(sp)) continue;
+    let sec; const dt = Date.parse((c[iDt] || '').replace(' ', 'T'));
+    if (!isNaN(dt)) { if (t0 === null) { t0 = dt; histStart = (c[iDt] || '').split(' ')[1] || ''; } sec = (dt - t0) / 1000; }
+    else sec = rows.length * 5;
+    rows.push({ sec, temp, sp });
+  }
+  return rows;
+}
+function histMetrics(rows) {
+  if (!rows.length) return { rise: null, over: 0, osil: 0, sp: 0 };
+  const sp = rows[rows.length - 1].sp, band = 0.01 * sp;
+  let rise = null; for (const r of rows) if (Math.abs(r.temp - sp) <= band) { rise = r.sec; break; }
+  const peak = Math.max(...rows.map(r => r.temp)), over = (peak - sp) / sp * 100;
+  let osil = 0;
+  if (rise != null) { const seg = rows.filter(r => r.sec >= rise).map(r => r.temp); if (seg.length) osil = (Math.max(...seg) - Math.min(...seg)) / sp * 100; }
+  return { rise, over, osil, sp, peak };
+}
+function renderHist(rows) {
+  const cv = $('histChart'), ctx = cv.getContext('2d');
+  const dpr = window.devicePixelRatio || 1, bb = cv.getBoundingClientRect();
+  const W = bb.width, H = bb.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const PAD = { l: 38, r: 12, t: 12, b: 28 };
+  ctx.fillStyle = '#1d150c'; ctx.fillRect(0, 0, W, H);
+  if (!rows.length) return;
+  const m = histMetrics(rows), tMax = rows[rows.length - 1].sec || 1;
+  const temps = rows.map(r => r.temp);
+  const yMin = Math.min(20, Math.min(...temps) - 2), yMax = Math.max(m.sp + 10, Math.max(...temps) + 2);
+  const X = s => PAD.l + (W - PAD.l - PAD.r) * (s / tMax);
+  const Y = v => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - yMin) / (yMax - yMin));
+  ctx.font = '10px ui-monospace,monospace'; ctx.textBaseline = 'middle';
+  for (let g = 0; g <= 4; g++) { const v = yMin + (yMax - yMin) * g / 4, y = Y(v);
+    ctx.strokeStyle = 'rgba(180,150,120,.10)'; ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    ctx.fillStyle = '#7d6a53'; ctx.fillText(v.toFixed(0), 4, y); }
+  ctx.textBaseline = 'top';
+  for (let g = 0; g <= 5; g++) { const s = tMax * g / 5; ctx.fillStyle = '#7d6a53'; ctx.fillText((s / 60).toFixed(0) + 'm', X(s), H - PAD.b + 6); }
+  if (histStart) { ctx.fillStyle = '#9b8b7a'; ctx.fillText('t0 ' + histStart, PAD.l, H - 12); }
+  ctx.strokeStyle = 'rgba(255,82,71,.7)'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.beginPath();
+  rows.forEach((r, i) => { const x = X(r.sec), y = Y(r.sp); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]);
+  const grad = ctx.createLinearGradient(0, PAD.t, 0, H - PAD.b); grad.addColorStop(0, '#ff7a2f'); grad.addColorStop(1, '#ffb24d');
+  ctx.strokeStyle = grad; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+  rows.forEach((r, i) => { const x = X(r.sec), y = Y(r.temp); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+  if (m.rise != null) { const x = X(m.rise), y = Y(m.sp);
+    ctx.fillStyle = '#22d3ee'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#161009'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#22d3ee'; ctx.textBaseline = 'bottom'; ctx.fillText('SP ' + (m.rise / 60).toFixed(1) + 'm', x + 6, y - 4); }
+}
+function openHist(path) {
+  $('histModal').classList.add('on');
+  $('dlCsv').href = '/api/download?file=' + encodeURIComponent(path);
+  fetch('/api/download?file=' + encodeURIComponent(path)).then(r => r.text()).then(txt => {
+    histRows = parseCsv(txt);
+    $('histTitle').textContent = 'Grafik — ' + basename(path) + (histStart ? ' (mulai ' + histStart + ')' : '');
+    const m = histMetrics(histRows);
+    $('mRise').textContent = m.rise != null ? (m.rise / 60).toFixed(2) + ' mnt' : '—';
+    $('mOver').textContent = m.over.toFixed(1) + ' %';
+    $('mOsil').textContent = m.osil.toFixed(1) + ' %';
+    requestAnimationFrame(() => renderHist(histRows));
+  }).catch(() => { $('histTitle').textContent = 'Gagal memuat CSV'; });
+}
+function closeHist() { $('histModal').classList.remove('on'); }
+function downloadJpg() {
+  const a = document.createElement('a');
+  a.download = $('histTitle').textContent.replace(/[^\w.-]/g, '_') + '.jpg';
+  a.href = $('histChart').toDataURL('image/jpeg', 0.92); a.click();
+}
+window.addEventListener('resize', () => { if ($('histModal').classList.contains('on')) renderHist(histRows); });
 
 // Load nilai input SEKALI saat akses (tidak ditimpa telemetri terus-menerus)
 function loadParams() {

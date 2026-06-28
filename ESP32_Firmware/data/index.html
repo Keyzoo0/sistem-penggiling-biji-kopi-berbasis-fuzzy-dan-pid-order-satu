@@ -89,13 +89,33 @@
       <div class="meta"><span id="volt">0.0</span>V · <span id="curr">0.00</span>A · pf <span id="pf">0.00</span></div>
     </section>
 
-    <!-- Logs -->
+    <!-- Riwayat data logger -->
     <section class="card span4">
-      <div class="card-h"><span class="eyebrow">Rekaman SD</span>
+      <div class="card-h"><span class="eyebrow">Riwayat Data Logger</span>
         <button class="ghost" onclick="loadLogs()">Muat ulang</button></div>
       <div class="logs" id="logs"><span class="empty">memuat…</span></div>
     </section>
   </main>
+
+  <!-- Modal grafik data logger -->
+  <div id="histModal" class="modal" aria-hidden="true">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="eyebrow" id="histTitle">Grafik Data Logger</span>
+        <button class="ghost" onclick="closeHist()">Tutup ✕</button>
+      </div>
+      <div class="hist-metrics">
+        <div class="hm"><span>Rise time</span><b id="mRise">–</b></div>
+        <div class="hm"><span>Overshoot</span><b id="mOver">–</b></div>
+        <div class="hm"><span>Osilasi</span><b id="mOsil">–</b></div>
+      </div>
+      <div class="hist-chart"><canvas id="histChart"></canvas></div>
+      <div class="modal-actions">
+        <a id="dlCsv" class="btn set" download href="#">Download CSV</a>
+        <button class="btn set" onclick="downloadJpg()">Download JPG</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
