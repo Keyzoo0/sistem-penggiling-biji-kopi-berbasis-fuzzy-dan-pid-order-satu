@@ -47,6 +47,21 @@
 #define RPM_STARTUP_MS  30000UL
 #define ENC_PPR          500
 #define ENC_EDGES_PER_REV (ENC_PPR * 2)   // attachInterrupt CHANGE = 2 edge/pulse
+#define RPM_EMA_ALPHA    0.2f             // filter EMA (encoder RPM tidak stabil)
+
+// ── VFD MCU-T13 via Modbus RTU + MAX485 (tab Fadel) ──────────────────────────
+//  Catatan: GPIO25 di dokумen bentrok Encoder A → DE/RE dipindah ke GPIO4.
+#define PIN_RS485_DE_RE   4      // DE+RE (jumper); HIGH=TX, LOW=RX
+#define PIN_RS485_RX     26      // Serial1 RX  (MAX485 RO)
+#define PIN_RS485_TX     27      // Serial1 TX  (MAX485 DI)
+#define VFD_SLAVE_ID    0x01
+#define VFD_BAUD        9600
+#define VFD_REG_CONTROL 0x2000
+#define VFD_REG_FREQ    0x2001
+#define VFD_REG_STATUS  0x3000
+#define VFD_CMD_RUN_FWD 0x0001
+#define VFD_CMD_STOP    0x0005
+#define VFD_FREQ_MAX_HZ 50.0f
 
 // ── Kontrol — default (dapat diubah operator via UI/web) ─────────────────────
 #define DEF_SETPOINT     60.0f

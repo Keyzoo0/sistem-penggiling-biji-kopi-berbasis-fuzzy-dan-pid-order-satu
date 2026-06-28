@@ -15,10 +15,8 @@ static PZEM004Tv30 pzem(Serial2, PIN_PZEM_RX, PIN_PZEM_TX);
 // ── Encoder ──────────────────────────────────────────────────────────────────
 static volatile int32_t s_pulseCount = 0;
 static portMUX_TYPE     s_encMux = portMUX_INITIALIZER_UNLOCKED;
-#define RPM_SAMPLES 10
-static float s_rpmBuf[RPM_SAMPLES];
-static int   s_rpmIdx = 0;
-static bool  s_rpmBufReady = false;
+static float s_rpmEma = 0.0f;
+static bool  s_emaReady = false;
 
 static void IRAM_ATTR encoderISR() {
   portENTER_CRITICAL_ISR(&s_encMux);
@@ -42,7 +40,7 @@ void sensorsInit() {
   pinMode(PIN_ENC_A, INPUT_PULLUP);
   pinMode(PIN_ENC_B, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_ENC_A), encoderISR, CHANGE);
-  for (int i = 0; i < RPM_SAMPLES; i++) s_rpmBuf[i] = 0.0f;
+  s_emaReady = false;
 }
 
 float sensorsReadTemp(bool& ok) {
@@ -65,16 +63,12 @@ void sensorsServiceRPM(uint32_t dtMs, float& rpmDryerOut) {
   float revs = (float)ticks / (float)ENC_EDGES_PER_REV;
   float rpm  = revs * (60000.0f / (float)dtMs);
   if (rpm < 0) rpm = -rpm;
+  float dryer = rpm / RPM_GEAR_RATIO;
 
-  if (!s_rpmBufReady && rpm > 0.5f) {
-    for (int i = 0; i < RPM_SAMPLES; i++) s_rpmBuf[i] = rpm;
-    s_rpmBufReady = true;
-  }
-  s_rpmBuf[s_rpmIdx] = rpm;
-  s_rpmIdx = (s_rpmIdx + 1) % RPM_SAMPLES;
-  float sum = 0;
-  for (int i = 0; i < RPM_SAMPLES; i++) sum += s_rpmBuf[i];
-  rpmDryerOut = (sum / RPM_SAMPLES) / RPM_GEAR_RATIO;
+  // EMA filter — meredam pembacaan RPM encoder yang tidak stabil
+  if (!s_emaReady) { s_rpmEma = dryer; s_emaReady = true; }
+  else s_rpmEma = RPM_EMA_ALPHA * dryer + (1.0f - RPM_EMA_ALPHA) * s_rpmEma;
+  rpmDryerOut = s_rpmEma;
 }
 
 void sensorsReadPzem(float& v, float& i, float& p, float& e, float& f, float& pfOut) {

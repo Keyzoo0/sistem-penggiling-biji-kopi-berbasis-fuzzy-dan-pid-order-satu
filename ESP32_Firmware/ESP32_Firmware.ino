@@ -21,6 +21,7 @@
 #include "ui.h"
 #include "webserver.h"
 #include "params.h"
+#include "vfd.h"
 
 // =============================================================================
 //  Transisi state (dipanggil hanya dari realtimeTask)
@@ -246,6 +247,7 @@ void setup() {
 
   sensorsInit();
   actuatorsInit();
+  vfdInit();
   loggingInit();
   uiInit();
   safetyInit();
