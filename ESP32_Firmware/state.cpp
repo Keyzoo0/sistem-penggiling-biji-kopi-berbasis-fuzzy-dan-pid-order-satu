@@ -25,6 +25,11 @@ void stateInit() {
   g_state.Kp = DEF_KP; g_state.Ki = DEF_KI; g_state.Kd = DEF_KD;
   g_state.lambda = DEF_LAMBDA; g_state.mu = DEF_MU; g_state.beta = DEF_BETA;
   g_state.freqMotor   = DEF_FREQ_MOTOR;
+  g_state.profile     = PROF_WAFI;
+  g_state.speedSP     = DEF_SPEED_SP;
+  g_state.sKp = DEF_SKP; g_state.sKi = DEF_SKI; g_state.sKd = DEF_SKD;
+  g_state.blowerConst = DEF_BLOWER_CONST;
+  g_state.vfdFreq     = 0.0f;
   g_state.rpmStatus   = RPMS_STARTUP;
   g_state.logFile[0]  = '\0';
 }

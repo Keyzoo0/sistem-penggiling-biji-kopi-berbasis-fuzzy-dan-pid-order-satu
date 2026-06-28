@@ -22,6 +22,7 @@
 #include "webserver.h"
 #include "params.h"
 #include "vfd.h"
+#include "control_speed.h"
 
 // =============================================================================
 //  Transisi state (dipanggil hanya dari realtimeTask)
@@ -47,6 +48,9 @@ static void applyParam(SystemState& st, ParamId id, float v) {
     case P_LAMBDA: st.lambda = v; break; case P_MU: st.mu = v; break; case P_BETA: st.beta = v; break;
   }
 }
+static void applySParam(SystemState& st, SParamId id, float v) {
+  switch (id) { case SP_KP: st.sKp = v; break; case SP_KI: st.sKi = v; break; case SP_KD: st.sKd = v; break; }
+}
 
 // =============================================================================
 //  Pemroses command (dari keypad & web, via antrian)
@@ -60,6 +64,7 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
         st.fault      = FLT_NONE;
         st.runStartMs = now;
         controlReset(st);
+        controlSpeedReset(st);
         safetyNoteValidTemp(now);
         if (st.subMode == SUB_MANUAL)
           st.blowerPct = constrain(st.blowerPct, (int)DIMMER_MIN, (int)DIMMER_MAX);
@@ -102,8 +107,20 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
       break;
 
     case CMD_SET_BLOWER:
-      if (st.subMode == SUB_MANUAL)
-        st.blowerPct = constrain((int)c.ival, (int)DIMMER_MIN, (int)DIMMER_MAX);
+      st.blowerConst = constrain((int)c.ival, (int)DIMMER_MIN, (int)DIMMER_MAX);  // Fadel: blower konstan
+      if (st.subMode == SUB_MANUAL) st.blowerPct = st.blowerConst;                // Wafi manual
+      break;   // tanpa paramsSave (slider bisa sering)
+
+    case CMD_SET_PROFILE:
+      if (st.opState == ST_IDLE) { st.profile = (c.ival == PROF_FADEL) ? PROF_FADEL : PROF_WAFI; paramsSave(st); }
+      break;
+
+    case CMD_SET_SPEED_SP:
+      st.speedSP = constrain(c.fval, 0.0f, SPEED_SP_MAX); paramsSave(st);
+      break;
+
+    case CMD_SET_SPARAM:
+      applySParam(st, (SParamId)c.ival, c.fval); paramsSave(st);
       break;
 
     case CMD_SET_DURATION:
@@ -137,6 +154,9 @@ static void publishState(const SystemState& st) {
   g_state.Kp = st.Kp; g_state.Ki = st.Ki; g_state.Kd = st.Kd;
   g_state.lambda = st.lambda; g_state.mu = st.mu; g_state.beta = st.beta;
   g_state.freqMotor = st.freqMotor;
+  g_state.profile = st.profile; g_state.speedSP = st.speedSP;
+  g_state.sKp = st.sKp; g_state.sKi = st.sKi; g_state.sKd = st.sKd;
+  g_state.blowerConst = st.blowerConst; g_state.vfdFreq = st.vfdFreq;
   memcpy(g_state.logFile, st.logFile, sizeof(g_state.logFile));
   STATE_UNLOCK();
 }
@@ -180,14 +200,15 @@ static void realtimeTask(void* pv) {
     }
     st.rpmStatus = safetyRpmStatus(st, now);
 
-    // kontrol (FUZZY) tiap CONTROL_PERIOD
-    if (st.opState == ST_RUNNING && st.subMode == SUB_FUZZY && (tick % ctrlEvery == 0)) {
-      controlCompute(st);
+    // kontrol tiap CONTROL_PERIOD — per profil
+    if (st.opState == ST_RUNNING && (tick % ctrlEvery == 0)) {
+      if (st.profile == PROF_WAFI) { if (st.subMode == SUB_FUZZY) controlCompute(st); }
+      else                          controlSpeedCompute(st);   // Fadel: RPM → vfdFreq
     }
 
     // aktuator
     if (st.opState == ST_RUNNING) {
-      actuatorSetBlower(st.blowerPct);
+      actuatorSetBlower(st.profile == PROF_FADEL ? st.blowerConst : st.blowerPct);
       actuatorSetServo(st.servoDeg);
     } else if (st.opState == ST_FAULT || st.opState == ST_FINISHED) {
       actuatorsSafeState(); st.blowerPct = 0; st.servoDeg = 0;
@@ -232,6 +253,25 @@ static void wsTaskFn(void* pv) {
   for (;;) { webBroadcast(); vTaskDelayUntil(&last, pdMS_TO_TICKS(WS_PERIOD_MS)); }
 }
 
+// VFD via Modbus (core 0) — Modbus lambat, dipisah dari loop kontrol.
+//  Target freq: Fadel = hasil PID (vfdFreq); Wafi = freqMotor (konstan).
+static void vfdTask(void* pv) {
+  TickType_t last = xTaskGetTickCount();
+  bool wasRun = false;
+  for (;;) {
+    SystemState st; stateGet(st);
+    bool run = (st.opState == ST_RUNNING);
+    float hz = (st.profile == PROF_FADEL) ? st.vfdFreq : st.freqMotor;
+    if (run) {
+      if (!wasRun) { vfdRun(); wasRun = true; }
+      vfdSetFrequency(hz);
+    } else if (wasRun) {
+      vfdStop(); wasRun = false;
+    }
+    vTaskDelayUntil(&last, pdMS_TO_TICKS(400));
+  }
+}
+
 // =============================================================================
 //  setup() / loop()
 // =============================================================================
@@ -265,6 +305,7 @@ void setup() {
   xTaskCreatePinnedToCore(uiTaskFn,     "ui",   6144, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(logTaskFn,    "log",  8192, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(wsTaskFn,     "ws",   8192, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(vfdTask,      "vfd",  4096, NULL, 1, NULL, 0);
 
   Serial.println("[SETUP] selesai, tasks berjalan");
 }

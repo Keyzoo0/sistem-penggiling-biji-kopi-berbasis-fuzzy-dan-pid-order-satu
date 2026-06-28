@@ -80,6 +80,14 @@
 #define DEF_FREQ_MOTOR    50.0f   // Hz — Wafi: kecepatan motor konstan (via VFD)
 #define FREQ_MOTOR_MAX    50.0f
 
+// Kontrol kecepatan (profil Fadel)
+#define DEF_SPEED_SP      30.0f   // target RPM drum
+#define SPEED_SP_MAX     100.0f
+#define DEF_SKP           1.00f
+#define DEF_SKI           0.10f
+#define DEF_SKD           0.00f
+#define DEF_BLOWER_CONST  25      // Fadel: blower konstan (%)
+
 // FoPID clamp & decay
 #define FOPID_U_CLAMP     14.0f
 #define FOPID_I_CLAMP     60.0f

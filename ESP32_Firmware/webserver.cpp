@@ -48,6 +48,10 @@ static String buildJson() {
   doc["integral"]   = st.integral;
   doc["derivative"] = st.derivative;
   doc["mlxOk"]      = st.mlxOk;
+  doc["profile"]    = (st.profile == PROF_FADEL) ? "FADEL" : "WAFI";
+  doc["speedSP"]    = st.speedSP;
+  doc["vfdFreq"]    = st.vfdFreq;
+  doc["blowerConst"]= st.blowerConst;
   doc["logging"]    = st.logging;
   long remaining = 0;
   if (st.opState == ST_RUNNING) {
@@ -67,6 +71,9 @@ static String buildParamsJson() {
   doc["lambda"] = st.lambda; doc["mu"] = st.mu; doc["beta"] = st.beta;
   doc["setpoint"] = st.setPoint; doc["duration"] = (long)st.durationMin;
   doc["servo"] = st.servoDeg; doc["freq"] = st.freqMotor;
+  doc["profile"] = (st.profile == PROF_FADEL) ? "FADEL" : "WAFI";
+  doc["speedSP"] = st.speedSP; doc["sKp"] = st.sKp; doc["sKi"] = st.sKi; doc["sKd"] = st.sKd;
+  doc["blowerConst"] = st.blowerConst;
   String o; serializeJson(doc, o); return o;
 }
 
@@ -92,6 +99,11 @@ static void handleWsText(uint8_t* data, size_t len) {
   if (!doc["mu"].isNull())     cmdSendT(CMD_SET_PARAM, doc["mu"].as<float>(),     P_MU);
   if (!doc["beta"].isNull())   cmdSendT(CMD_SET_PARAM, doc["beta"].as<float>(),   P_BETA);
   if (!doc["freq"].isNull())   cmdSendT(CMD_SET_FREQ,  doc["freq"].as<float>());
+  if (!doc["profile"].isNull()){ String p = doc["profile"].as<String>(); cmdSendT(CMD_SET_PROFILE, 0, p == "FADEL" ? PROF_FADEL : PROF_WAFI); }
+  if (!doc["speedsp"].isNull()) cmdSendT(CMD_SET_SPEED_SP, doc["speedsp"].as<float>());
+  if (!doc["skp"].isNull())     cmdSendT(CMD_SET_SPARAM, doc["skp"].as<float>(), SP_KP);
+  if (!doc["ski"].isNull())     cmdSendT(CMD_SET_SPARAM, doc["ski"].as<float>(), SP_KI);
+  if (!doc["skd"].isNull())     cmdSendT(CMD_SET_SPARAM, doc["skd"].as<float>(), SP_KD);
 }
 
 static void onWsEvent(AsyncWebSocket* s, AsyncWebSocketClient* c, AwsEventType type,
