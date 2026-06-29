@@ -24,8 +24,8 @@ Kontrol suhu sangrai presisi di **ESP32** — *Fuzzy Inference System* + *Fracti
 
 ## 📑 Daftar Isi
 - [Fitur](#-fitur) · [Tampilan](#-tampilan) · [Metode Kontrol](#-metode-kontrol--inti-proyek) · [Parameter & Rumus](#-parameter-tuning--rumus) · [Arsitektur](#%EF%B8%8F-arsitektur)
-- [Hardware](#-hardware--pinout) · [Mulai Cepat](#-mulai-cepat) · [**Manual Book**](#-manual-book--panduan-operasi) · [Kontrak Web](#-kontrak-web-websocket--rest)
-- [Simulasi](#-simulasi) · [Roadmap](#%EF%B8%8F-roadmap) · [Kredit](#-kredit)
+- [Struktur Proyek](#%EF%B8%8F-struktur-proyek) · [Referensi Teknis](#-referensi-teknis) · [Hardware](#-hardware--pinout) · [Mulai Cepat](#-mulai-cepat)
+- [**Manual Book**](#-manual-book--panduan-operasi) · [Kontrak Web](#-kontrak-web-websocket--rest) · [Simulasi](#-simulasi) · [Roadmap](#%EF%B8%8F-roadmap) · [Kredit](#-kredit)
 
 ## ✨ Fitur
 
@@ -180,6 +180,117 @@ stateDiagram-v2
 ```
 
 > Rancangan lengkap: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+## 🗂️ Struktur Proyek
+
+```
+.
+├── ESP32_Firmware/              # Firmware ESP32 (Arduino · dual-core FreeRTOS)
+│   ├── ESP32_Firmware.ino       # Entry: setup(), task FreeRTOS, state machine, applyCommand()
+│   ├── config.h                 # SEMUA konstanta: pin, ambang safety, default, jaringan
+│   ├── types.h                  # enum (OpState/Profile/CmdType/ParamId…) + struct SystemState & Command
+│   ├── state.cpp / .h           # g_state (sumber kebenaran tunggal), mutex, command queue, makro lock
+│   ├── sensors.cpp / .h         # MLX90614 (suhu IR), DS3231 (RTC), encoder RPM + EMA, PZEM-004T
+│   ├── actuators.cpp / .h       # Dimmer AC (blower), servo (gas), LED status, safe-state
+│   ├── control.cpp / .h         # Wafi: Fuzzy + FoPID → blower (kontrol suhu)
+│   ├── Fis_Header.h             # Mesin Fuzzy (MF segitiga, rule-base, defuzzifikasi centroid) — header-only
+│   ├── control_speed.cpp / .h   # Fadel: PID kecepatan → frekuensi VFD
+│   ├── vfd.cpp / .h             # VFD MCU-T13 via Modbus RTU (MAX485, CRC16, FC03/FC06)
+│   ├── safety.cpp / .h          # Supervisor: over-temp, sensor gagal, e-stop, status RPM
+│   ├── logging.cpp / .h         # Logger CSV ke SD per-profil + daftar & unduh
+│   ├── params.cpp / .h          # Simpan/muat parameter ke NVS (Preferences)
+│   ├── ui.cpp / .h              # LCD 20×4 + keypad 4×4 (page-based, profil-aware)
+│   ├── webserver.cpp / .h       # AsyncWebServer + WebSocket + REST + serve LittleFS
+│   ├── secrets.h.example        # Template kredensial WiFi (salin → secrets.h, di-gitignore)
+│   └── data/                    # Aset web (di-flash ke partisi LittleFS)
+│       ├── index.html           # Struktur dashboard 2 tab (Wafi/Fadel)
+│       ├── app.js               # Logika: WebSocket, chart canvas, kontrol, riwayat, tooltip, sinkron tab
+│       └── style.css            # Tema offline “roasted-dark” (tanpa CDN)
+├── tools/
+│   └── control_sim.py           # Digital-twin (FIS+FoPID+plant) untuk verifikasi & tuning tanpa alat
+├── docs/                        # Screenshot dashboard untuk README
+├── ARCHITECTURE.md              # Rancangan arsitektur lengkap (task, state, kontrak data)
+├── REWORK_PLAN.md               # Rencana & keputusan desain v2 (dua profil)
+├── VFD_Modbus_ESP32_MAX485.md   # Panduan wiring & protokol Modbus VFD
+└── README.md                    # Dokumen ini
+```
+
+> **Prinsip modular:** tiap modul `.cpp/.h` punya satu tanggung jawab; semua menulis/membaca
+> `g_state` lewat `state.*` (mutex + command queue), tak ada variabel global liar. Konstanta
+> "angka ajaib" terpusat di `config.h`. Lihat **[ARCHITECTURE.md](ARCHITECTURE.md)** untuk detail.
+
+## 🔬 Referensi Teknis
+
+<details>
+<summary><b>Task &amp; pembagian core (FreeRTOS)</b> (klik)</summary>
+
+| Task | Core | Prio | Periode | Tugas |
+|---|:--:|:--:|:--:|---|
+| `realtimeTask` | 1 | 3 | 100 ms | baca suhu → drain command → safety → kontrol → aktuator |
+| `vfdTask` | 0 | 1 | 400 ms | kirim run/stop + frekuensi ke VFD (Modbus — sengaja dipisah, latensi tinggi) |
+| `uiTask` | 0 | 2 | 80 ms | LCD + keypad (render & input) |
+| `wsTask` | 0 | 1 | 500 ms | broadcast telemetri ke semua klien WebSocket |
+| `pzemTask` | 0 | 1 | 1000 ms | baca PZEM (V/I/P/pf) |
+| `logTask` | 0 | 1 | 5000 ms | tulis 1 baris CSV ke SD (saat merekam) |
+
+`loop()` sengaja idle — semua kerja di task. Hanya `realtimeTask` yang menulis state proses.
+
+</details>
+
+<details>
+<summary><b>Peta partisi flash</b> (skema default 4 MB) (klik)</summary>
+
+| Partisi | Offset | Ukuran | Isi |
+|---|---|---|---|
+| nvs | `0x9000` | 20 KB | parameter tersimpan (Preferences) |
+| otadata | `0xe000` | 8 KB | metadata OTA |
+| app0 | `0x10000` | 1.25 MB | **firmware** (≈94% terpakai) |
+| app1 | `0x150000` | 1.25 MB | slot OTA cadangan |
+| spiffs | `0x290000` | 1.375 MB | **LittleFS** — aset web (`data/`) |
+| coredump | `0x3F0000` | 64 KB | core dump |
+
+</details>
+
+<details>
+<summary><b>Format berkas log CSV</b> (klik)</summary>
+
+Disimpan tiap **5 detik** saat proses berjalan ke `/log/wafi/wafi_NNN.csv` atau
+`/log/fadel/fadel_NNN.csv`. Baris pertama `#` = metadata (waktu mulai, SP, Kp/Ki/Kd, dst), lalu:
+
+```
+DateTime, Suhu_C, SetPoint_C, Error_C, dError_C, U_FoPID, Integral, Derivative,
+FIS_Out, Blower_pct, Servo, RPM, Voltage, Current, Power, PF, OpState, SubMode, RpmStatus
+```
+
+`SetPoint_C` = setpoint suhu (Wafi) atau target RPM (Fadel). Unduh via web (`Download CSV`).
+
+</details>
+
+<details>
+<summary><b>Dependensi &amp; toolchain</b> (klik)</summary>
+
+- **Core:** `esp32:esp32` (Arduino-ESP32 **3.3.10**) — API LEDC baru, timer baru.
+- **Library:** Adafruit MLX90614 · RTClib · PZEM004Tv30 · ESP32Servo · LiquidCrystal I2C ·
+  I2CKeyPad · ArduinoJson · AsyncTCP (3.4.10) · ESPAsyncWebServer (3.11.1) ·
+  RBDdimmer (*patch core 3.x*: `esp_intr.h`→`esp_intr_alloc.h`, API timer baru).
+- **Tools:** `arduino-cli` (build/upload) · `esptool.py` (flash) · `mklittlefs` (image web).
+
+</details>
+
+<details>
+<summary><b>Glosarium singkatan</b> (klik)</summary>
+
+| Singkatan | Arti |
+|---|---|
+| **FoPID** | Fractional-Order PID (PID orde pecahan λ, µ) |
+| **FIS / MF** | Fuzzy Inference System / Membership Function (fungsi keanggotaan) |
+| **EMA** | Exponential Moving Average (filter penghalus RPM) |
+| **VFD** | Variable Frequency Drive (pengatur kecepatan motor) |
+| **NVS** | Non-Volatile Storage (Preferences — simpan parameter permanen) |
+| **SP / e** | Setpoint / error (`e = SP − terukur`) |
+| **AP / mDNS** | Access Point WiFi / penamaan `kopi.local` |
+
+</details>
 
 ## 🔩 Hardware & Pinout
 
