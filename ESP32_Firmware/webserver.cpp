@@ -99,6 +99,7 @@ static void handleWsText(uint8_t* data, size_t len) {
   if (!doc["mu"].isNull())     cmdSendT(CMD_SET_PARAM, doc["mu"].as<float>(),     P_MU);
   if (!doc["beta"].isNull())   cmdSendT(CMD_SET_PARAM, doc["beta"].as<float>(),   P_BETA);
   if (!doc["freq"].isNull())   cmdSendT(CMD_SET_FREQ,  doc["freq"].as<float>());
+  if (!doc["vfd"].isNull())    cmdSendT(CMD_SET_VFD,   doc["vfd"].as<float>());   // Fadel manual
   if (!doc["profile"].isNull()){ String p = doc["profile"].as<String>(); cmdSendT(CMD_SET_PROFILE, 0, p == "FADEL" ? PROF_FADEL : PROF_WAFI); }
   if (!doc["speedsp"].isNull()) cmdSendT(CMD_SET_SPEED_SP, doc["speedsp"].as<float>());
   if (!doc["skp"].isNull())     cmdSendT(CMD_SET_SPARAM, doc["skp"].as<float>(), SP_KP);

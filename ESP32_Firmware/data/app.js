@@ -35,12 +35,23 @@ const rpmChart  = makeChart('rpmChart', '#3ec6e0', 0, 60);
 
 /* ── Tab ──────────────────────────────────────────────────────────────────── */
 let curTab = 'Wafi';
-function showTab(name) {
+let lastManualTab = 0;   // anti-balik: abaikan auto-follow sesaat setelah klik manual
+const TAB_TITLE = {
+  Wafi:  'Sistem Kontrol Suhu Penggiling Biji Kopi',
+  Fadel: 'Sistem Kontrol Kecepatan Penggiling Biji Kopi'
+};
+function showTab(name, fromUser = true) {
+  // Safety: tab tujuan dikunci saat proses berjalan (lihat render()) → abaikan.
+  const btn = name === 'Fadel' ? $('tabBtnFadel') : $('tabBtnWafi');
+  if (btn.disabled) return;
+  if (fromUser) lastManualTab = Date.now();
   curTab = name;
   $('tabWafi').style.display  = name === 'Wafi'  ? '' : 'none';
   $('tabFadel').style.display = name === 'Fadel' ? '' : 'none';
   $('tabBtnWafi').classList.toggle('on', name === 'Wafi');
   $('tabBtnFadel').classList.toggle('on', name === 'Fadel');
+  $('brandTitle').textContent = TAB_TITLE[name];
+  document.title = TAB_TITLE[name];
   send({ profile: name === 'Fadel' ? 'FADEL' : 'WAFI' });
   setTimeout(() => (name === 'Fadel' ? rpmChart : tempChart).resize(), 30);
 }
@@ -89,9 +100,28 @@ function render(d) {
   const idle = d.opState === 'IDLE', run = d.opState === 'RUNNING', halted = d.opState === 'FAULT' || d.opState === 'FINISHED';
   setBtn('bFuzzy', idle && d.profile === 'WAFI'); setBtn('bManual', idle && d.profile === 'WAFI');
   setBtn('bStop', run); setBtn('bReset', halted);
-  setBtn('bStartF', idle && d.profile === 'FADEL'); setBtn('bStopF', run); setBtn('bResetF', halted);
+  setBtn('bStartF', idle && d.profile === 'FADEL'); setBtn('bManualF', idle && d.profile === 'FADEL');
+  setBtn('bStopF', run); setBtn('bResetF', halted);
+
+  // ── Safety: kunci pindah tab saat proses berjalan (tak boleh ganti profil di tengah jalan) ──
+  const lockFadel = run && d.profile === 'WAFI', lockWafi = run && d.profile === 'FADEL';
+  $('tabBtnFadel').disabled = lockFadel; $('tabBtnWafi').disabled = lockWafi;
+  $('tabBtnFadel').title = lockFadel ? 'Terkunci — proses Wafi sedang berjalan' : '';
+  $('tabBtnWafi').title  = lockWafi  ? 'Terkunci — proses Fadel sedang berjalan' : '';
+
+  // ── Sinkron profil: ikuti g_state (mis. diganti dari keypad LCD) → web pindah tab ──
+  //   Jeda 1.5 dtk setelah klik manual agar broadcast lama tak membalik tab.
+  if (d.profile) {
+    const want = d.profile === 'FADEL' ? 'Fadel' : 'Wafi';
+    if (want !== curTab && Date.now() - lastManualTab > 1500) showTab(want, false);
+  }
+
+  // ── Manual Wafi (blower) ──
   $('manualBox').classList.toggle('on', d.subMode === 'MANUAL' && d.profile === 'WAFI');
-  if (d.subMode === 'MANUAL' && document.activeElement !== $('inBlower')) { $('inBlower').value = d.blower; setT('manVal', d.blower); }
+  if (d.subMode === 'MANUAL' && d.profile === 'WAFI' && document.activeElement !== $('inBlower')) { $('inBlower').value = d.blower; setT('manVal', d.blower); }
+  // ── Manual Fadel (freq VFD) ──
+  $('manualBoxF').classList.toggle('on', d.subMode === 'MANUAL' && d.profile === 'FADEL');
+  if (d.subMode === 'MANUAL' && d.profile === 'FADEL' && document.activeElement !== $('inFreqMan')) { $('inFreqMan').value = d.vfdFreq || 0; setT('manValF', (d.vfdFreq || 0).toFixed(1)); }
 
   // ── Rekam (hitung mundur) ──
   const remTxt = fmt(d.remaining), recOn = d.logging;
@@ -125,10 +155,12 @@ function setSpeed()  { const v = numv('inSpeed');  if (!isNaN(v)) send({ speedsp
 function setServoF() { const v = parseInt($('inServoF').value); if (!isNaN(v)) send({ servo: v }); }
 function setBlowerC(){ const v = parseInt($('inBlowerC').value); if (!isNaN(v)) send({ blower: v }); }
 function setDurF()   { const v = parseInt($('inDurF').value); if (!isNaN(v)) send({ duration: v }); }
+function setVfdMan(v){ setT('manValF', parseFloat(v).toFixed(1)); send({ vfd: parseFloat(v) }); }
 function setP(key, id){ const v = numv(id); if (!isNaN(v)) send({ [key]: v }); }
 function startFuzzy()  { send({ start: 'FUZZY' }); }
 function startManual() { send({ start: 'MANUAL' }); }
-function startSpeed()  { send({ start: 'FUZZY' }); }   // profil sudah FADEL via tab
+function startSpeed()   { send({ start: 'FUZZY' }); }   // profil sudah FADEL via tab → PID kecepatan
+function startManualF() { send({ start: 'MANUAL' }); }  // Fadel manual → freq VFD langsung
 function stopSys()  { send({ stop: true }); }
 function resetSys() { send({ reset: true }); }
 function estop()    { if (confirm('Hentikan semua sekarang?')) send({ estop: true }); }
@@ -147,12 +179,19 @@ function loadParams() {
 
 /* ── Riwayat: grafik dari CSV + metrik + download ─────────────────────────── */
 const basename = p => p.split('/').pop();
+function renderLogList(id, arr) {
+  const e = $(id); if (!e) return;
+  e.innerHTML = arr.length
+    ? arr.map(n => `<button class="logitem" onclick="openHist('${n}')">📈 ${basename(n)}</button>`).join('')
+    : '<span class="empty">Belum ada rekaman.</span>';
+}
 function loadLogs() {
   fetch('/api/logs').then(r => r.json()).then(f => {
-    $('logs').innerHTML = f.length
-      ? f.map(n => `<button class="logitem" onclick="openHist('${n}')">📈 ${basename(n)}</button>`).join('')
-      : '<span class="empty">Belum ada rekaman.</span>';
-  }).catch(() => { $('logs').innerHTML = '<span class="empty">Gagal memuat daftar.</span>'; });
+    renderLogList('logsWafi',  f.filter(n => n.includes('/wafi/')));
+    renderLogList('logsFadel', f.filter(n => n.includes('/fadel/')));
+  }).catch(() => {
+    ['logsWafi', 'logsFadel'].forEach(id => { const e = $(id); if (e) e.innerHTML = '<span class="empty">Gagal memuat daftar.</span>'; });
+  });
 }
 let histRows = [], histStart = '';
 function parseCsv(text) {
@@ -225,6 +264,28 @@ function downloadJpg() {
   a.href = $('histChart').toDataURL('image/jpeg', 0.92); a.click();
 }
 window.addEventListener('resize', () => { if ($('histModal').classList.contains('on')) renderHist(histRows); });
+
+/* ── Tooltip "?" (floating, anti-terpotong di tepi layar; mouse+keyboard+sentuh) ── */
+const tip = document.createElement('div'); tip.className = 'tip'; document.body.appendChild(tip);
+let tipFor = null;
+function showTip(el) {
+  const t = el.getAttribute('data-tip'); if (!t) return;
+  tip.textContent = t; tip.classList.add('on');
+  const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = r.left + r.width / 2 - tw / 2; x = Math.max(8, Math.min(x, innerWidth - tw - 8));
+  let y = r.top - th - 8; if (y < 8) y = r.bottom + 8;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { tip.classList.remove('on'); tipFor = null; }
+document.addEventListener('mouseover', e => { const h = e.target.closest('.help'); if (h) showTip(h); });
+document.addEventListener('mouseout',  e => { if (e.target.closest('.help')) hideTip(); });
+document.addEventListener('focusin',   e => { const h = e.target.closest('.help'); if (h) showTip(h); });
+document.addEventListener('focusout',  e => { if (e.target.closest('.help')) hideTip(); });
+document.addEventListener('click', e => {                  // sentuh: tap = toggle
+  const h = e.target.closest('.help');
+  if (h) { if (tipFor === h) hideTip(); else { showTip(h); tipFor = h; } }
+  else if (!e.target.closest('.tip')) hideTip();
+});
 
 tempChart.resize();
 connect();

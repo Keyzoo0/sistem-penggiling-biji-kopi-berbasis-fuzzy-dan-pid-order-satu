@@ -108,8 +108,9 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
 
     case CMD_SET_BLOWER:
       st.blowerConst = constrain((int)c.ival, (int)DIMMER_MIN, (int)DIMMER_MAX);  // Fadel: blower konstan
-      if (st.subMode == SUB_MANUAL) st.blowerPct = st.blowerConst;                // Wafi manual
-      break;   // tanpa paramsSave (slider bisa sering)
+      if (st.subMode == SUB_MANUAL) st.blowerPct = st.blowerConst;                // Wafi manual (live)
+      if (st.opState == ST_IDLE) paramsSave(st);  // konfig sengaja (web/keypad saat siaga) → persist
+      break;   // saat RUNNING (slider manual sering) tak di-NVS
 
     case CMD_SET_PROFILE:
       if (st.opState == ST_IDLE) { st.profile = (c.ival == PROF_FADEL) ? PROF_FADEL : PROF_WAFI; paramsSave(st); }
@@ -134,6 +135,10 @@ static void applyCommand(SystemState& st, const Command& c, uint32_t now) {
 
     case CMD_SET_FREQ:
       st.freqMotor = constrain(c.fval, 0.0f, FREQ_MOTOR_MAX); paramsSave(st);
+      break;
+
+    case CMD_SET_VFD:
+      st.vfdFreq = constrain(c.fval, 0.0f, VFD_FREQ_MAX_HZ);   // Fadel manual: freq langsung (live, tak di-NVS)
       break;
 
     default: break;
@@ -200,10 +205,11 @@ static void realtimeTask(void* pv) {
     }
     st.rpmStatus = safetyRpmStatus(st, now);
 
-    // kontrol tiap CONTROL_PERIOD — per profil
-    if (st.opState == ST_RUNNING && (tick % ctrlEvery == 0)) {
-      if (st.profile == PROF_WAFI) { if (st.subMode == SUB_FUZZY) controlCompute(st); }
-      else                          controlSpeedCompute(st);   // Fadel: RPM → vfdFreq
+    // kontrol tiap CONTROL_PERIOD — per profil (PID/fuzzy hanya di mode FUZZY;
+    //   mode MANUAL: blower (Wafi) / vfdFreq (Fadel) di-set langsung operator)
+    if (st.opState == ST_RUNNING && st.subMode == SUB_FUZZY && (tick % ctrlEvery == 0)) {
+      if (st.profile == PROF_WAFI) controlCompute(st);        // Wafi: suhu → blower
+      else                         controlSpeedCompute(st);   // Fadel: RPM → vfdFreq
     }
 
     // aktuator

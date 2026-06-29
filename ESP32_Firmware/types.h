@@ -19,7 +19,8 @@ enum CmdType : uint8_t {
   CMD_NONE, CMD_START, CMD_STOP, CMD_ESTOP, CMD_RESET,
   CMD_SET_SETPOINT, CMD_SET_SERVO, CMD_SET_BLOWER,
   CMD_SET_DURATION, CMD_SET_PARAM, CMD_SET_FREQ,
-  CMD_SET_PROFILE, CMD_SET_SPEED_SP, CMD_SET_SPARAM
+  CMD_SET_PROFILE, CMD_SET_SPEED_SP, CMD_SET_SPARAM,
+  CMD_SET_VFD                                   // Fadel manual: set freq VFD langsung (Hz)
 };
 enum ParamId  : uint8_t { P_KP, P_KI, P_KD, P_LAMBDA, P_MU, P_BETA };
 enum SParamId : uint8_t { SP_KP, SP_KI, SP_KD };

@@ -32,10 +32,8 @@ body{
   background:linear-gradient(180deg,rgba(45,32,18,.6),rgba(45,32,18,0));
   position:sticky;top:0;z-index:10;backdrop-filter:blur(6px)
 }
-.brand{display:flex;align-items:baseline;gap:10px}
-.brand b{font-size:18px;font-weight:800;letter-spacing:.16em}
-.brand b .dot{color:var(--ember)}
-.brand span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0;flex:1 1 auto}
+.brand b{font-size:clamp(13px,1.5vw,16px);font-weight:800;letter-spacing:.02em;line-height:1.2;color:var(--cream)}
 .top-right{display:flex;align-items:center;gap:10px}
 
 /* state pill + connection dot */
@@ -134,8 +132,11 @@ input[type=range]{width:100%;accent-color:var(--cool)}
 .btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
 .internals{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:12px;
   padding-top:10px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 16px}
-#manualBox{display:none;margin-bottom:11px}
-#manualBox.on{display:block}
+#manualBox,#manualBoxF{display:none;margin-bottom:11px}
+#manualBox.on,#manualBoxF.on{display:block}
+#manualBox label,#manualBoxF label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+.hint{font-size:10.5px;color:var(--faint);font-family:var(--sans)}
+.hint b{color:var(--amber)}
 
 /* ── Logs ───────────────────────────────────────────────────────────────── */
 .logs a{display:block;font-family:var(--mono);font-size:12.5px;color:var(--muted);
@@ -169,7 +170,8 @@ input[type=range]{width:100%;accent-color:var(--cool)}
 .tab{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface2);
   border:1px solid var(--line2);border-radius:999px;padding:6px 14px;cursor:pointer}
 .tab.on{color:#160d05;background:linear-gradient(180deg,#ff8a3d,#e9631c);border-color:transparent}
-.tab:hover:not(.on){color:var(--cream)}
+.tab:hover:not(.on):not(:disabled){color:var(--cream)}
+.tab:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.3)}
 .legend .l-rpm{display:inline-block;width:14px;height:0;border-top:3px solid var(--cool);vertical-align:middle;margin-right:5px}
 
 /* ── Param grid (tuning) ──────────────────────────────────────────────────── */
@@ -181,12 +183,24 @@ input[type=range]{width:100%;accent-color:var(--cool)}
 .pf input:focus{outline:none;border-color:var(--ember);box-shadow:0 0 0 3px rgba(255,122,47,.18)}
 .pf .btn.set{padding:6px;flex:none}
 
+/* ── Help badge "?" + tooltip melayang ────────────────────────────────────── */
+.help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;
+  font-size:10px;font-weight:800;color:#160d05;background:var(--muted);cursor:help;font-family:var(--sans);
+  vertical-align:middle;margin-left:3px;user-select:none;flex:none}
+.help:hover,.help:focus{background:var(--amber);outline:none}
+.tip{position:fixed;z-index:200;max-width:min(300px,86vw);background:#0d0905;color:var(--cream);
+  border:1px solid var(--line2);border-radius:9px;padding:9px 11px;font-size:11.5px;font-weight:400;
+  line-height:1.5;letter-spacing:.2px;box-shadow:0 12px 34px rgba(0,0,0,.6);left:-9999px;top:-9999px;
+  opacity:0;visibility:hidden;transition:opacity .12s;pointer-events:none}
+.tip.on{opacity:1;visibility:visible}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width:860px){
   .wrap{grid-template-columns:repeat(2,1fr)}
   .hero,.ctrl,.span4,.span3,.span2{grid-column:span 2}
   .span1{grid-column:span 1}
-  .brand span{display:none}
+  .topbar{flex-wrap:wrap;gap:8px 12px}
+  .brand{flex:1 1 100%}
 }
 @media (max-width:560px){
   .wrap{grid-template-columns:1fr;padding:12px}
